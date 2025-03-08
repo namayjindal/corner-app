@@ -3,82 +3,472 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Corner - Find Your Perfect Spot</title>
+    <title>corner - find your perfect spot</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .lowercase {
+            text-transform: lowercase;
+        }
+        
+        .place-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 1px solid #f0f0f0;
+        }
+        
+        .place-card:hover {
+            box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+            transform: translateY(-2px);
+        }
+        
+        .tag-pill {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background-color: #f3f4f6;
+            color: #4b5563;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .location-icon {
+            color: #6366f1;
+            margin-right: 0.25rem;
+        }
+        
+        #search-input {
+            border-radius: 9999px;
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+            height: 3rem;
+            border: 1px solid #e5e7eb;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        #search-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        #search-button {
+            position: absolute;
+            right: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6366f1;
+        }
+        
+        .popular-search-pill {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            background-color: #f3f4f6;
+            color: #4b5563;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .popular-search-pill:hover {
+            background-color: #e5e7eb;
+        }
+        
+        .search-container {
+            max-width: 42rem;
+            margin: 0 auto;
+        }
+        
+        .similarity-badge {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6366f1;
+        }
+        
+        .price-indicator {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #111827;
+        }
+        
+        .description-text {
+            color: #6b7280;
+            font-size: 0.875rem;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+        }
+        
+        #modal-content {
+            color: #4b5563;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <header class="bg-white shadow-sm py-4">
-        <div class="container mx-auto px-4">
+<body>
+    <header class="py-4 border-b border-gray-100">
+        <div class="container mx-auto px-4 md:px-6">
             <div class="flex justify-between items-center">
-                <h1 class="text-2xl font-bold text-indigo-600">Corner</h1>
-                <div class="text-sm text-gray-600">Find your perfect spot in NYC</div>
+                <h1 class="text-xl font-medium text-indigo-600 lowercase">corner</h1>
+                <div class="text-sm text-gray-500 lowercase">find your perfect spot in nyc</div>
             </div>
         </div>
     </header>
 
-    <main class="container mx-auto px-4 py-8">
-        <section class="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
-            <div class="text-center mb-6">
-                <h2 class="text-3xl font-bold text-gray-800 mb-2">Discover NYC's Hidden Gems</h2>
-                <p class="text-gray-600">Search for restaurants, cafes, bars and more</p>
+    <main class="container mx-auto px-4 md:px-6 py-12">
+        <div class="search-container bg-white rounded-xl shadow-sm p-8 mb-12">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-medium text-gray-800 mb-2 lowercase">discover nyc's hidden gems</h2>
+                <p class="text-gray-500 lowercase">search for restaurants, cafes, bars and more</p>
             </div>
             
-            <div class="relative mb-4">
+            <div class="relative mb-6">
                 <input 
                     type="text" 
                     id="search-input" 
-                    class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Try 'cozy cafe in Brooklyn' or 'romantic dinner in West Village'"
+                    class="w-full lowercase"
+                    placeholder="try 'cozy cafe in brooklyn' or 'romantic dinner in west village'"
                 >
-                <button id="search-button" class="absolute right-3 top-3 text-gray-500 hover:text-indigo-600">
+                <button id="search-button">
                     <i class="fas fa-search"></i>
                 </button>
             </div>
             
-            <div id="search-suggestions" class="bg-white rounded-md shadow-lg absolute z-10 w-full max-w-3xl hidden"></div>
+            <div id="search-suggestions" class="bg-white rounded-lg shadow-lg absolute z-10 w-full hidden"></div>
             
-            <div class="text-sm text-gray-500 flex flex-wrap gap-2 mt-2" id="popular-searches">
-                <span class="font-medium">Popular searches:</span>
-                <!-- Will be populated by JavaScript -->
+            <div class="mt-4 lowercase">
+                <span class="text-sm text-gray-500 mr-2">popular searches:</span>
+                <div class="flex flex-wrap gap-2 mt-2" id="popular-searches">
+                    <!-- Will be populated by JavaScript -->
+                </div>
             </div>
-        </section>
+        </div>
 
-        <section id="results-container" class="max-w-4xl mx-auto hidden">
-            <h3 class="text-xl font-semibold text-gray-700 mb-4">Results for "<span id="search-term"></span>"</h3>
+        <div id="results-container" class="hidden">
+            <h3 class="text-xl font-medium text-gray-700 mb-6 lowercase">results for "<span id="search-term"></span>"</h3>
             <div id="search-results" class="grid gap-6 grid-cols-1 md:grid-cols-2">
                 <!-- Results will be inserted here -->
             </div>
-            <div id="no-results" class="text-center py-8 hidden">
-                <p class="text-gray-600">No results found. Try a different search term.</p>
+            <div id="no-results" class="text-center py-8 hidden lowercase">
+                <p class="text-gray-500">no results found. try a different search term.</p>
             </div>
-        </section>
+        </div>
     </main>
 
-    <footer class="bg-white py-6 mt-auto">
-        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
-            &copy; 2025 Corner - Discover NYC's Best Spots
+    <footer class="py-8 mt-auto">
+        <div class="container mx-auto px-4 text-center text-gray-400 text-sm lowercase">
+            &copy; 2025 corner - discover nyc's best spots
         </div>
     </footer>
 
     <!-- Modal for place details -->
     <div id="place-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto mx-4">
-            <div class="p-6">
-                <div class="flex justify-between items-start mb-4">
-                    <h3 id="modal-title" class="text-2xl font-bold text-gray-800"></h3>
-                    <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+        <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto mx-4">
+            <div class="p-6 md:p-8">
+                <div class="flex justify-between items-start mb-6">
+                    <h3 id="modal-title" class="text-2xl font-medium text-gray-800 lowercase"></h3>
+                    <button id="close-modal" class="text-gray-400 hover:text-gray-600">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <div id="modal-content">
+                <div id="modal-content" class="lowercase">
                     <!-- Place details will be inserted here -->
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+            const searchSuggestions = document.getElementById('search-suggestions');
+            const resultsContainer = document.getElementById('results-container');
+            const searchResults = document.getElementById('search-results');
+            const searchTerm = document.getElementById('search-term');
+            const noResults = document.getElementById('no-results');
+            const popularSearches = document.getElementById('popular-searches');
+            const placeModal = document.getElementById('place-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalContent = document.getElementById('modal-content');
+            const closeModal = document.getElementById('close-modal');
+
+            // Load popular searches
+            fetch('/api/recent_queries')
+                .then(response => response.json())
+                .then(data => {
+                    const queries = data.queries || [];
+                    
+                    queries.slice(0, 6).forEach(query => {
+                        const pill = document.createElement('span');
+                        pill.className = 'popular-search-pill';
+                        pill.textContent = query;
+                        pill.addEventListener('click', () => {
+                            searchInput.value = query;
+                            performSearch(query);
+                        });
+                        popularSearches.appendChild(pill);
+                    });
+                })
+                .catch(error => console.error('Error loading popular searches:', error));
+
+            // Search functionality
+            searchButton.addEventListener('click', () => {
+                const query = searchInput.value.trim();
+                if (query) {
+                    performSearch(query);
+                }
+            });
+
+            searchInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') {
+                    const query = searchInput.value.trim();
+                    if (query) {
+                        performSearch(query);
+                    }
+                }
+            });
+
+            // Close modal when clicking the close button
+            closeModal.addEventListener('click', () => {
+                placeModal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            });
+
+            // Close modal when clicking outside the modal content
+            placeModal.addEventListener('click', (e) => {
+                if (e.target === placeModal) {
+                    placeModal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                }
+            });
+
+            function performSearch(query) {
+                // Show loading state
+                searchResults.innerHTML = getLoadingHTML();
+                resultsContainer.classList.remove('hidden');
+                searchTerm.textContent = query;
+                noResults.classList.add('hidden');
+
+                // Perform search
+                fetch(`/api/search?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Clear loading state
+                        searchResults.innerHTML = '';
+                        
+                        if (data.results && data.results.length > 0) {
+                            data.results.forEach((place, index) => {
+                                const card = createPlaceCard(place);
+                                // Add fade-in animation with delay based on index
+                                card.style.animation = `fadeIn 0.3s ease-in-out ${index * 0.05}s both`;
+                                searchResults.appendChild(card);
+                            });
+                        } else {
+                            noResults.classList.remove('hidden');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error performing search:', error);
+                        searchResults.innerHTML = `<div class="col-span-2 text-center py-4 text-red-500">
+                            <p>an error occurred while searching. please try again.</p>
+                        </div>`;
+                    });
+            }
+
+            function createPlaceCard(place) {
+                const div = document.createElement('div');
+                div.className = 'place-card';
+                div.dataset.id = place.id;
+                
+                // Format price range
+                let priceHTML = '';
+                if (place.price_range) {
+                    priceHTML = `<div class="price-indicator">${place.price_range}</div>`;
+                }
+                
+                // Format tags
+                let tagsHTML = '';
+                if (place.tags && Array.isArray(place.tags)) {
+                    tagsHTML = place.tags.slice(0, 3).map(tag => 
+                        `<span class="tag-pill">${tag}</span>`
+                    ).join('');
+                }
+                
+                // Format similarity (cap at 100%)
+                let similarity = Math.min(place.similarity, 100).toFixed(1);
+                
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-medium text-gray-800">${place.name.toLowerCase()}</h3>
+                        <div class="similarity-badge">${similarity}% match</div>
+                    </div>
+                    <div class="text-sm text-gray-500 mb-3">
+                        <i class="fas fa-map-marker-alt location-icon"></i>${(place.neighborhood || 'new york').toLowerCase()}
+                    </div>
+                    <div class="flex justify-between items-center mb-3">
+                        ${priceHTML}
+                    </div>
+                    ${tagsHTML ? `<div class="mb-3">${tagsHTML}</div>` : ''}
+                    <div class="description-text">${place.description || 'no description available'}</div>
+                `;
+                
+                // Add click event to show details
+                div.addEventListener('click', () => {
+                    showPlaceDetails(place.id);
+                });
+                
+                return div;
+            }
+
+            function showPlaceDetails(placeId) {
+                // Show loading state
+                modalTitle.textContent = 'loading...';
+                modalContent.innerHTML = getLoadingHTML();
+                placeModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+                
+                // Fetch place details
+                fetch(`/api/place/${placeId}`)
+                    .then(response => response.json())
+                    .then(place => {
+                        modalTitle.textContent = place.name.toLowerCase();
+                        
+                        // Format hours if available
+                        let hoursHTML = '';
+                        if (place.hours) {
+                            try {
+                                const hours = typeof place.hours === 'string' ? JSON.parse(place.hours) : place.hours;
+                                if (typeof hours === 'object') {
+                                    hoursHTML = '<ul class="text-sm space-y-1">';
+                                    for (const [day, time] of Object.entries(hours)) {
+                                        hoursHTML += `<li><span class="font-medium">${day}:</span> ${time}</li>`;
+                                    }
+                                    hoursHTML += '</ul>';
+                                } else {
+                                    hoursHTML = `<p class="text-sm">${hours}</p>`;
+                                }
+                            } catch (e) {
+                                hoursHTML = `<p class="text-sm">${place.hours}</p>`;
+                            }
+                        }
+                        
+                        // Format tags
+                        let tagsHTML = '';
+                        if (place.tags && Array.isArray(place.tags)) {
+                            tagsHTML = place.tags.map(tag => 
+                                `<span class="tag-pill">${tag}</span>`
+                            ).join('');
+                        }
+                        
+                        // Format reviews
+                        let reviewsHTML = '';
+                        if (place.reviews && place.reviews.length > 0) {
+                            reviewsHTML = place.reviews.map(review => `
+                                <div class="bg-gray-50 p-4 rounded-lg mb-3">
+                                    <div class="text-sm font-medium text-indigo-600 mb-1">${review.source}</div>
+                                    <p class="text-sm text-gray-600">${review.review_text}</p>
+                                </div>
+                            `).join('');
+                        } else {
+                            reviewsHTML = '<p class="text-gray-500">no reviews available</p>';
+                        }
+                        
+                        modalContent.innerHTML = `
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div class="md:col-span-2">
+                                    <div class="mb-8">
+                                        <h4 class="text-lg font-medium text-gray-800 mb-3">about</h4>
+                                        <p class="text-gray-600">${place.combined_description || 'no description available'}</p>
+                                    </div>
+                                    
+                                    <div class="mb-8">
+                                        <h4 class="text-lg font-medium text-gray-800 mb-3">reviews</h4>
+                                        ${reviewsHTML}
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div class="bg-gray-50 p-5 rounded-xl">
+                                        <div class="mb-6">
+                                            <h4 class="text-lg font-medium text-gray-800 mb-3">info</h4>
+                                            <div class="space-y-2">
+                                                <p><i class="fas fa-map-marker-alt location-icon"></i>${place.neighborhood || 'new york'}</p>
+                                                ${place.price_range ? `<p><i class="fas fa-dollar-sign text-indigo-500 mr-2"></i>${place.price_range}</p>` : ''}
+                                                ${place.address ? `<p><i class="fas fa-location-dot text-indigo-500 mr-2"></i>${place.address}</p>` : ''}
+                                            </div>
+                                        </div>
+                                        
+                                        ${place.website ? `
+                                        <div class="mb-6">
+                                            <h4 class="text-lg font-medium text-gray-800 mb-3">links</h4>
+                                            <div class="space-y-2">
+                                                <p>
+                                                    <i class="fas fa-globe text-indigo-500 mr-2"></i>
+                                                    <a href="${place.website}" target="_blank" class="text-indigo-600 hover:underline">website</a>
+                                                </p>
+                                                ${place.instagram_handle ? `
+                                                <p>
+                                                    <i class="fab fa-instagram text-indigo-500 mr-2"></i>
+                                                    <a href="https://instagram.com/${place.instagram_handle}" target="_blank" class="text-indigo-600 hover:underline">@${place.instagram_handle}</a>
+                                                </p>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                        ` : ''}
+                                        
+                                        ${hoursHTML ? `
+                                        <div class="mb-6">
+                                            <h4 class="text-lg font-medium text-gray-800 mb-3">hours</h4>
+                                            ${hoursHTML}
+                                        </div>
+                                        ` : ''}
+                                        
+                                        ${tagsHTML ? `
+                                        <div>
+                                            <h4 class="text-lg font-medium text-gray-800 mb-3">tags</h4>
+                                            <div class="flex flex-wrap">${tagsHTML}</div>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    })
+                    .catch(error => {
+                        console.error('Error fetching place details:', error);
+                        modalContent.innerHTML = `
+                            <div class="text-center py-4 text-red-500">
+                                <p>an error occurred while fetching place details. please try again.</p>
+                            </div>
+                        `;
+                    });
+            }
+
+            function getLoadingHTML() {
+                return `
+                    <div class="flex justify-center items-center py-12">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
+                `;
+            }
+        });
+    </script>
 </body>
 </html>
