@@ -48,6 +48,25 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+    
+    function addDebugToggle() {
+        // Target a more specific location for the toggle
+        const popularSearchesSection = document.getElementById('popular-searches').parentElement;
+        
+        const debugToggle = document.createElement('div');
+        debugToggle.className = 'mt-3 text-center';
+        debugToggle.innerHTML = `
+            <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="debug-toggle" class="form-checkbox h-4 w-4 text-indigo-600">
+                <span class="ml-2 text-sm text-gray-500">Show search debug info</span>
+            </label>
+        `;
+        
+        // Insert the toggle right before the popular searches section
+        popularSearchesSection.insertBefore(debugToggle, document.getElementById('popular-searches'));
+    }
+
+    addDebugToggle();
 
     // Close modal when clicking the close button
     closeModal.addEventListener('click', () => {
@@ -64,22 +83,37 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function performSearch(query) {
-        // Show loading state
+    // Show loading state
         searchResults.innerHTML = getLoadingHTML();
         resultsContainer.classList.remove('hidden');
         searchTerm.textContent = query;
         noResults.classList.add('hidden');
 
+        // Check if debug mode is enabled
+        const debugMode = document.getElementById('debug-toggle')?.checked || false;
+        
         // Perform search
-        fetch(`/api/search?q=${encodeURIComponent(query)}`)
+        fetch(`/api/search?q=${encodeURIComponent(query)}${debugMode ? '&debug=true' : ''}`)
             .then(response => response.json())
             .then(data => {
                 // Clear loading state
                 searchResults.innerHTML = '';
                 
                 if (data.results && data.results.length > 0) {
+                    // Show debug panel if debug info exists
+                    if (data.debug_info) {
+                        const debugPanel = document.createElement('div');
+                        debugPanel.className = 'col-span-2 bg-gray-50 p-4 rounded-lg mb-6 overflow-auto';
+                        debugPanel.style.maxHeight = '400px';
+                        debugPanel.innerHTML = `
+                            <h3 class="text-lg font-medium mb-2 lowercase">Search Debug Information</h3>
+                            <pre class="text-xs whitespace-pre-wrap">${JSON.stringify(data.debug_info, null, 2)}</pre>
+                        `;
+                        searchResults.appendChild(debugPanel);
+                    }
+                    
                     data.results.forEach((place, index) => {
-                        const card = createPlaceCard(place);
+                        const card = createPlaceCard(place, data.debug_info ? data.debug_info[index] : null);
                         // Add fade-in animation with delay based on index
                         card.style.animation = `fadeIn 0.3s ease-in-out ${index * 0.05}s both`;
                         searchResults.appendChild(card);
@@ -91,15 +125,21 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error performing search:', error);
                 searchResults.innerHTML = `<div class="col-span-2 text-center py-4 text-red-500">
-                    <p>An error occurred while searching. Please try again.</p>
+                    <p>an error occurred while searching. please try again.</p>
                 </div>`;
             });
     }
 
-    function createPlaceCard(place) {
+    function createPlaceCard(place, debugInfo) {
         const div = document.createElement('div');
         div.className = 'place-card';
         div.dataset.id = place.id;
+        
+        // Format price range
+        let priceHTML = '';
+        if (place.price_range) {
+            priceHTML = `<div class="price-indicator">${place.price_range}</div>`;
+        }
         
         // Format tags
         let tagsHTML = '';
@@ -109,18 +149,74 @@ document.addEventListener('DOMContentLoaded', function() {
             ).join('');
         }
         
-        div.innerHTML = `
-            <h3>${place.name}</h3>
-            <div class="neighborhood">
-                <i class="fas fa-map-marker-alt text-indigo-500"></i> ${place.neighborhood || 'New York'}
+        // Format similarity (cap at 100%)
+        let similarity = Math.min(place.similarity, 100).toFixed(1);
+        
+        let cardHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-lg font-medium text-gray-800">${place.name.toLowerCase()}</h3>
+                <div class="similarity-badge">${similarity}% match</div>
             </div>
-            <div class="flex justify-between items-center">
-                <div class="price">${place.price_range || ''}</div>
-                <div class="text-xs text-indigo-600 font-medium">${place.similarity}% match</div>
+            <div class="text-sm text-gray-500 mb-3">
+                <i class="fas fa-map-marker-alt location-icon"></i>${(place.neighborhood || 'new york').toLowerCase()}
             </div>
-            <div class="tags mt-2">${tagsHTML}</div>
-            <div class="description">${place.description || 'No description available'}</div>
+            <div class="flex justify-between items-center mb-3">
+                ${priceHTML}
+            </div>
+            ${tagsHTML ? `<div class="mb-3">${tagsHTML}</div>` : ''}
+            <div class="description-text">${place.description || 'no description available'}</div>
         `;
+        
+        // Add debug info if available
+        if (debugInfo) {
+            cardHTML += `
+                <div class="mt-4 pt-3 border-t border-gray-200">
+                    <div class="text-xs font-medium text-gray-700 mb-2">similarity factors:</div>
+                    <div class="text-xs text-gray-600 space-y-1">
+            `;
+            
+            // Add name match
+            if (debugInfo.factors.name_match) {
+                cardHTML += `
+                    <div>
+                        <span class="font-medium">name match:</span> 
+                        ${debugInfo.factors.name_match.score}%
+                        ${debugInfo.factors.name_match.matching_terms.length > 0 ? 
+                          `(${debugInfo.factors.name_match.matching_terms.join(', ')})` : ''}
+                    </div>
+                `;
+            }
+            
+            // Add tag match
+            if (debugInfo.factors.tag_match) {
+                cardHTML += `
+                    <div>
+                        <span class="font-medium">tag match:</span> 
+                        ${debugInfo.factors.tag_match.score}%
+                        ${debugInfo.factors.tag_match.matching_terms.length > 0 ? 
+                          `(${debugInfo.factors.tag_match.matching_terms.join(', ')})` : ''}
+                    </div>
+                `;
+            }
+            
+            // Add location match if present
+            if (debugInfo.factors.location_match) {
+                cardHTML += `
+                    <div>
+                        <span class="font-medium">location match:</span> 
+                        ${debugInfo.factors.location_match.is_match ? 'Yes' : 'No'}
+                    </div>
+                `;
+            }
+            
+            // Close debug section
+            cardHTML += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        div.innerHTML = cardHTML;
         
         // Add click event to show details
         div.addEventListener('click', () => {

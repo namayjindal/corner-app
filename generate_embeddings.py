@@ -59,9 +59,10 @@ CUISINE_TERMS = {
 }
 
 PRICE_TERMS = {
-    'cheap': ['affordable', 'budget-friendly', 'inexpensive', 'good value', 'low price'],
-    'moderate': ['mid-range', 'reasonable', 'moderately priced', 'fair price'],
-    'expensive': ['high-end', 'upscale', 'pricey', 'fine dining', 'luxury', 'splurge']
+    'cheap': ['affordable', 'budget-friendly', 'inexpensive', 'good value', 'low price', '$1-$10', '$10-$20', '$20-$30'],
+    'moderate': ['mid-range', 'reasonable', 'moderately priced', 'fair price', '$20-$30', '$30-$50'],
+    'expensive': ['high-end', 'upscale', 'pricey', 'fine dining', 'luxury', 'splurge', '$50-$100',
+                  '$100-$200', '$200+'],
 }
 
 ACTIVITY_TERMS = {
@@ -981,7 +982,7 @@ class EmbeddingGenerator:
         
         return expanded_query
     
-    def search_places_with_enhanced_query(self, query, limit=10, amenity_filter=True):
+    def search_places_with_enhanced_query(self, query, limit=10, amenity_filter=True, debug=False):
         """
         Search places with enhanced query parsing, expansion, and filtering
         
@@ -989,13 +990,14 @@ class EmbeddingGenerator:
             query: Original user query
             limit: Maximum number of results
             amenity_filter: Whether to apply amenity filtering
+            debug: Whether to return debug information
             
         Returns:
-            List of matching places
+            List of matching places, and optionally debug info
         """
         if not self.has_pgvector:
             logger.warning("pgvector extension not available, cannot perform search")
-            return []
+            return [] if not debug else ([], [])
         
         # Parse the query into categories
         parsed_query = self.parse_query(query)
@@ -1014,7 +1016,7 @@ class EmbeddingGenerator:
             
             if not query_embedding:
                 logger.error("Failed to generate embedding for search query")
-                return []
+                return [] if not debug else ([], [])
             
             # Prepare parameters for search
             search_params = []
@@ -1090,9 +1092,42 @@ class EmbeddingGenerator:
                         # Re-combine results
                         results = boosted_results + [r for r in other_results if r[0] not in [br[0] for br in boosted_results]]
             
-            # Sort by similarity and limit results
-            results.sort(key=lambda x: x[6], reverse=True)
-            results = results[:limit]
+            # Apply tag-based re-ranking
+            query_terms = set(parsed_query['cleaned_query'].lower().split())
+            
+            # Add any category terms
+            for category in ['vibe', 'establishment', 'cuisine', 'activity', 'amenities']:
+                for term in parsed_query[category]:
+                    query_terms.add(term.lower())
+            
+            # Boost results with tag matches
+            boosted_results = []
+            for result in results:
+                place_id, name, result_neighborhood, tags, price, desc, similarity = result
+                
+                # Calculate tag match score
+                tag_boost = 0
+                if tags and isinstance(tags, list):
+                    for tag in tags:
+                        if tag.lower() in query_terms:
+                            # Add a small boost for each matching tag (adjust as needed)
+                            tag_boost += 0.05
+                            
+                # Apply tag boost (capped at 0.2 to avoid overwhelming semantic search)
+                new_similarity = min(1.0, similarity + tag_boost)
+                boosted_results.append((place_id, name, result_neighborhood, tags, price, desc, new_similarity))
+            
+            # Resort based on new similarity scores
+            boosted_results.sort(key=lambda x: x[6], reverse=True)
+            results = boosted_results[:limit]
+            
+            # Generate debug info if requested
+            if debug:
+                debug_info = []
+                for result in results:
+                    analysis = self.analyze_similarity_factors(result, query, query_embedding, result[6])
+                    debug_info.append(analysis)
+                return results, debug_info
             
             return results
             
@@ -1100,7 +1135,7 @@ class EmbeddingGenerator:
             logger.error(f"Error searching places: {str(e)}")
             logger.error(traceback.format_exc())
             conn.rollback()
-            return []
+            return [] if not debug else ([], [])
         finally:
             cur.close()
             conn.close()
@@ -1130,6 +1165,66 @@ class EmbeddingGenerator:
         finally:
             cur.close()
             conn.close()
+
+    def analyze_similarity_factors(self, place, query, query_embedding, similarity_score):
+        """Analyze what factors are contributing to the similarity score for debugging purposes"""
+        analysis = {
+            "place_id": place[0],
+            "place_name": place[1],
+            "final_similarity": similarity_score,
+            "factors": {}
+        }
+        
+        # Parse the actual text content that went into the embeddings
+        place_id, name, neighborhood, tags, price, desc, _ = place
+        
+        # Break down query into components
+        parsed_query = self.parse_query(query)
+        
+        # Check for direct term matches in different fields
+        match_categories = {
+            "name_match": [word.lower() for word in name.split()],
+            "tag_match": [tag.lower() for tag in (tags or [])],
+            "description_match": [word.lower() for word in (desc or "").split()[:50]]  # Sample of first 50 words
+        }
+        
+        query_terms = query.lower().split()
+        
+        # Calculate term match percentages
+        for category, place_terms in match_categories.items():
+            matches = [term for term in query_terms if term in place_terms]
+            match_percentage = len(matches) / len(query_terms) if query_terms else 0
+            analysis["factors"][category] = {
+                "score": round(match_percentage * 100, 2),
+                "matching_terms": matches
+            }
+        
+        # Add category-specific matches
+        for category in ["vibe", "establishment", "cuisine", "price", "activity", "time", "amenities"]:
+            if parsed_query[category]:
+                analysis["factors"][f"{category}_match"] = {
+                    "query_terms": parsed_query[category],
+                    "present_in_description": [term for term in parsed_query[category] 
+                                            if term.lower() in (desc or "").lower()]
+                }
+        
+        # Location match
+        if parsed_query["location"] and neighborhood:
+            analysis["factors"]["location_match"] = {
+                "query_location": parsed_query["location"],
+                "place_neighborhood": neighborhood,
+                "is_match": parsed_query["location"].lower() in neighborhood.lower()
+            }
+        
+        # Add query expansion info
+        expanded_query = self.expand_query(parsed_query)
+        analysis["query_expansion"] = {
+            "original": query,
+            "expanded": expanded_query,
+            "added_terms": [term for term in expanded_query.split() if term not in query.split()]
+        }
+        
+        return analysis
     
     def extract_amenities_from_descriptions(self):
         """Extract amenities from place descriptions and populate the amenities column"""

@@ -34,13 +34,21 @@ def search():
     """API endpoint for enhanced search functionality"""
     query = request.args.get('q', '')
     limit = int(request.args.get('limit', 10))
+    debug = request.args.get('debug', '').lower() == 'true'
     
     if not query:
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     
     try:
         # Use the enhanced search functionality
-        results = embedding_generator.search_places_with_enhanced_query(query, limit=limit)
+        if debug:
+            results, debug_info = embedding_generator.search_places_with_enhanced_query(
+                query, limit=limit, debug=True
+            )
+        else:
+            results = embedding_generator.search_places_with_enhanced_query(
+                query, limit=limit
+            )
         
         # Convert results to a more frontend-friendly format
         formatted_results = []
@@ -71,11 +79,10 @@ def search():
         except Exception as e:
             logger.warning(f"Failed to log search query: {e}")
         
-        return jsonify({"results": formatted_results})
-    
-    except Exception as e:
-        logger.error(f"Error during search: {str(e)}")
-        return jsonify({"error": "An error occurred during search", "details": str(e)}), 500
+        if debug:
+            return jsonify({"results": formatted_results, "debug_info": debug_info})
+        else:
+            return jsonify({"results": formatted_results})
     
     except Exception as e:
         logger.error(f"Error during search: {str(e)}")

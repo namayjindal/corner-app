@@ -74,6 +74,18 @@ Results are ranked using a combination of:
 - Location-based boosting
 - Amenity filtering
 
+### 6. Tag-Based Re-Ranking
+
+As a final quality assurance step, we implement tag-based re-ranking:
+
+- After semantic similarity search and location-based filtering
+- Directly compares query terms with place tags
+- Places with tags matching query terms receive a small boost (up to 20%)
+- Ensures places explicitly tagged with search terms rank higher
+- Balances semantic understanding with explicit keyword matching
+
+This helps with queries like "book stores" by ensuring that places specifically tagged as "bookstore" receive higher rankings, even when semantic similarity might not fully capture the user's intent.
+
 ## Results
 
 This enhanced approach delivers several benefits:
