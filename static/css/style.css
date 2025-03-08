@@ -1,0 +1,67 @@
+/* Custom styles beyond Tailwind */
+.tag-pill {
+    @apply inline-block px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 mr-1 mb-1;
+}
+
+.place-card {
+    @apply bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition duration-200 cursor-pointer;
+}
+
+.place-card h3 {
+    @apply text-lg font-semibold text-gray-800 mb-1;
+}
+
+.place-card .neighborhood {
+    @apply text-sm text-gray-600 mb-2;
+}
+
+.place-card .price {
+    @apply text-sm font-medium text-gray-800;
+}
+
+.place-card .description {
+    @apply text-sm text-gray-600 mt-2 line-clamp-3;
+}
+
+.search-suggestion {
+    @apply px-4 py-2 hover:bg-gray-100 cursor-pointer;
+}
+
+#search-input:focus {
+    @apply border-indigo-500;
+}
+
+/* Animation for results loading */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Styling for the modal */
+.modal-section {
+    @apply mb-6;
+}
+
+.modal-section-title {
+    @apply text-lg font-semibold text-gray-800 mb-2;
+}
+
+.review-card {
+    @apply bg-gray-50 p-3 rounded-md mb-3;
+}
+
+.review-source {
+    @apply text-sm font-medium text-indigo-600 mb-1;
+}
+
+/* Truncate long text with ellipsis */
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
