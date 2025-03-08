@@ -29,6 +29,66 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Define dictionaries for query expansion
+VIBE_TERMS = {
+    'cozy': ['warm', 'intimate', 'homey', 'comfortable', 'snug', 'hygge'],
+    'chill': ['relaxed', 'laid-back', 'casual', 'low-key', 'easygoing', 'mellow'],
+    'aesthetic': ['stylish', 'beautiful', 'instagrammable', 'pretty', 'photogenic', 'designed', 'trendy'],
+    'vibey': ['atmospheric', 'cool', 'trendy', 'hip', 'fun', 'good vibes', 'ambiance'],
+    'romantic': ['intimate', 'date night', 'candlelit', 'quiet', 'cozy', 'dimly lit'],
+    'cool': ['hip', 'trendy', 'edgy', 'stylish', 'interesting', 'unique'],
+    'fancy': ['upscale', 'elegant', 'sophisticated', 'high-end', 'luxurious'],
+    'casual': ['relaxed', 'laid-back', 'informal', 'easygoing', 'unpretentious']
+}
+
+ESTABLISHMENT_TERMS = {
+    'cafe': ['coffee shop', 'bakery', 'pastry shop', 'espresso bar', 'tea house'],
+    'bar': ['pub', 'cocktail bar', 'lounge', 'tavern', 'speakeasy', 'dive bar'],
+    'restaurant': ['eatery', 'bistro', 'dining', 'diner', 'trattoria', 'brasserie'],
+    'bakery': ['patisserie', 'bread shop', 'cake shop', 'pastry shop'],
+    'diner': ['breakfast place', 'brunch spot', 'greasy spoon', 'all-day breakfast']
+}
+
+CUISINE_TERMS = {
+    'italian': ['pasta', 'pizza', 'risotto', 'italian cuisine', 'trattoria', 'italian restaurant'],
+    'asian': ['chinese', 'japanese', 'korean', 'thai', 'vietnamese', 'asian cuisine', 'asian fusion'],
+    'mexican': ['tacos', 'burritos', 'tex-mex', 'mexican cuisine', 'mexican food'],
+    'american': ['burgers', 'sandwiches', 'american cuisine', 'american food', 'new american'],
+    'chinese': ['dim sum', 'dumpling', 'noodles', 'chinese cuisine', 'chinese food'],
+    'japanese': ['sushi', 'ramen', 'japanese cuisine', 'japanese food', 'izakaya'],
+}
+
+PRICE_TERMS = {
+    'cheap': ['affordable', 'budget-friendly', 'inexpensive', 'good value', 'low price'],
+    'moderate': ['mid-range', 'reasonable', 'moderately priced', 'fair price'],
+    'expensive': ['high-end', 'upscale', 'pricey', 'fine dining', 'luxury', 'splurge']
+}
+
+ACTIVITY_TERMS = {
+    'work': ['wifi', 'laptop friendly', 'outlets', 'coworking', 'study', 'productive'],
+    'date': ['romantic', 'date night', 'intimate', 'couples', 'special occasion'],
+    'group': ['group dining', 'large parties', 'group friendly', 'communal seating'],
+    'party': ['celebration', 'birthday', 'special occasion', 'event', 'gathering'],
+    'quiet': ['peaceful', 'calm', 'serene', 'tranquil', 'not crowded']
+}
+
+TIME_TERMS = {
+    'breakfast': ['morning', 'early', 'brunch', 'breakfast food', 'eggs', 'pastry'],
+    'lunch': ['midday', 'noon', 'lunch menu', 'lunch special'],
+    'dinner': ['evening', 'night', 'dinner menu', 'supper'],
+    'late night': ['open late', 'after hours', 'late', 'midnight', 'night owl']
+}
+
+AMENITY_TERMS = {
+    'wifi': ['internet', 'wi-fi', 'free wifi', 'internet access'],
+    'outdoor seating': ['patio', 'terrace', 'outdoor space', 'alfresco', 'sidewalk seating'],
+    'pet friendly': ['dog friendly', 'allows dogs', 'brings dogs', 'canine friendly'],
+    'view': ['scenic view', 'overlook', 'vista', 'skyline view', 'waterfront'],
+    'live music': ['music venue', 'band', 'performer', 'music performance', 'dj'],
+    'reservations': ['takes reservations', 'reservation required', 'reserve ahead'],
+    'takeout': ['to go', 'takeaway', 'carryout', 'pickup', 'delivery']
+}
+
 class EmbeddingGenerator:
     def __init__(self, db_config):
         """Initialize database configuration and OpenAI client"""
@@ -294,7 +354,8 @@ class EmbeddingGenerator:
                 p.neighborhood,
                 p.price_range,
                 p.address,
-                p.hours
+                p.hours,
+                p.amenities
             FROM places p
             LEFT JOIN embeddings e ON p.id = e.place_id
             WHERE e.id IS NULL
@@ -314,6 +375,7 @@ class EmbeddingGenerator:
                 p.price_range,
                 p.address,
                 p.hours,
+                p.amenities,
                 e.id as embedding_id, 
                 e.last_updated
             FROM places p
@@ -445,6 +507,34 @@ class EmbeddingGenerator:
         
         return None
     
+    def parse_amenities(self, amenities_data):
+        """Parse amenities data into a structured format"""
+        if not amenities_data:
+            return {}
+        
+        # If it's already a dictionary, return it
+        if isinstance(amenities_data, dict):
+            return amenities_data
+        
+        # If it's a JSON string, parse it
+        if isinstance(amenities_data, str):
+            try:
+                return json.loads(amenities_data.replace("'", '"'))
+            except:
+                # Try to parse from comma-separated list
+                if ',' in amenities_data:
+                    amenities = {}
+                    for item in amenities_data.split(','):
+                        item = item.strip()
+                        if item:
+                            amenities[item] = True
+                    return amenities
+                else:
+                    # Single amenity
+                    return {amenities_data.strip(): True}
+        
+        return {}
+    
     def extract_resy_details(self, resy_data):
         """Extract useful information from Resy data"""
         if not resy_data or not isinstance(resy_data, dict):
@@ -468,14 +558,13 @@ class EmbeddingGenerator:
         # Extract relevant place data
         place_id, name, description = place[0], place[1], place[2]
         tags_data, corner_id = place[3], place[4]
-        neighborhood, price_range = place[5] if len(place) > 5 else None, place[6] if len(place) > 6 else None
+        neighborhood = place[5] if len(place) > 5 else None
+        price_range = place[6] if len(place) > 6 else None
         address, hours = place[7] if len(place) > 7 else None, place[8] if len(place) > 8 else None
+        amenities = place[9] if len(place) > 9 else None
         
-        # Start with the basic info
+        # Start with the basic info - explicitly exclude location/neighborhood for embedding
         content_parts = [f"Name: {name}"]
-        
-        if neighborhood:
-            content_parts.append(f"Neighborhood: {neighborhood}")
         
         # Process price range
         processed_price = self.process_price_range(price_range)
@@ -484,20 +573,22 @@ class EmbeddingGenerator:
             content_parts.append(f"Price Category: {processed_price['description']}")
         
         if address:
-            content_parts.append(f"Address: {address}")
+            # Remove specific address numbers to focus on street names
+            generalized_address = re.sub(r'^\d+\s+', '', address)
+            content_parts.append(f"Address: {generalized_address}")
         
         # Process hours
         processed_hours = self.process_business_hours(hours)
         if processed_hours:
-            hours_text = []
-            if isinstance(processed_hours['original'], dict):
-                for day, time in processed_hours['original'].items():
-                    hours_text.append(f"{day}: {time}")
-                if hours_text:
-                    content_parts.append(f"Hours: {', '.join(hours_text)}")
-            
             if processed_hours['description']:
                 content_parts.append(f"Hours Info: {processed_hours['description']}")
+        
+        # Process amenities
+        parsed_amenities = self.parse_amenities(amenities)
+        if parsed_amenities:
+            amenities_list = [k for k, v in parsed_amenities.items() if v]
+            if amenities_list:
+                content_parts.append(f"Amenities: {', '.join(amenities_list)}")
         
         # Add description if available
         if description:
@@ -536,7 +627,11 @@ class EmbeddingGenerator:
         # Calculate content hash for detecting changes
         content_hash = hashlib.md5(content.encode()).hexdigest()
         
-        return content, content_hash
+        # Store the neighborhood separately - it won't be included in the embedding
+        # but will be used for filtering
+        neighborhood_info = neighborhood
+        
+        return content, content_hash, neighborhood_info
     
     def generate_embedding(self, text):
         """Generate embedding using OpenAI API"""
@@ -677,7 +772,7 @@ class EmbeddingGenerator:
                 logger.info(f"Processing new place: {name} (ID: {place_id}) - {processed+1}/{total_places}")
                 
                 # Prepare text and validate
-                content, content_hash = self.prepare_text_for_embedding(place, place_reviews)
+                content, content_hash, neighborhood = self.prepare_text_for_embedding(place, place_reviews)
                 
                 if not content:
                     self.update_embedding_status(place_id, "failed", "No valid content for embedding")
@@ -706,12 +801,12 @@ class EmbeddingGenerator:
             # Process updated places
             for place in updated_places:
                 place_id, name = place[0], place[1]
-                embedding_id = place[9] if len(place) > 9 else None
+                embedding_id = place[10] if len(place) > 10 else None
                 
                 logger.info(f"Processing updated place: {name} (ID: {place_id}) - {processed+1}/{total_places}")
                 
                 # Prepare text and validate
-                content, content_hash = self.prepare_text_for_embedding(place, place_reviews)
+                content, content_hash, neighborhood = self.prepare_text_for_embedding(place, place_reviews)
                 
                 if not content:
                     self.update_embedding_status(place_id, "failed", "No valid content for embedding")
@@ -750,15 +845,150 @@ class EmbeddingGenerator:
             logger.error(traceback.format_exc())
             return 0
     
-    def search_places_with_location(self, query, neighborhood=None, limit=5, location_boost_percentage=0.2):
+    def parse_query(self, query):
         """
-        Enhanced search combining semantic similarity with location filtering
+        Parse a query into categorized tokens
+        
+        Returns:
+            dict: Dictionary with categorized tokens and cleaned query
+        """
+        result = {
+            'location': None,
+            'vibe': [],
+            'establishment': [],
+            'cuisine': [],
+            'price': [],
+            'activity': [],
+            'time': [],
+            'amenities': [],
+            'group_size': [],
+            'cleaned_query': query,
+            'original_query': query
+        }
+        
+        # First extract location to remove it from embedding consideration
+        cleaned_query, location = extract_location_from_query(query)
+        result['location'] = location
+        result['cleaned_query'] = cleaned_query
+        
+        # Process query text to identify various categories
+        query_lower = cleaned_query.lower()
+        
+        # Identify vibe terms
+        for term, synonyms in VIBE_TERMS.items():
+            if term in query_lower or any(syn in query_lower for syn in synonyms):
+                result['vibe'].append(term)
+        
+        # Identify establishment types
+        for est_type, synonyms in ESTABLISHMENT_TERMS.items():
+            if est_type in query_lower or any(syn in query_lower for syn in synonyms):
+                result['establishment'].append(est_type)
+        
+        # Identify cuisine types
+        for cuisine, synonyms in CUISINE_TERMS.items():
+            if cuisine in query_lower or any(syn in query_lower for syn in synonyms):
+                result['cuisine'].append(cuisine)
+        
+        # Identify price terms
+        for price, synonyms in PRICE_TERMS.items():
+            if price in query_lower or any(syn in query_lower for syn in synonyms):
+                result['price'].append(price)
+        
+        # Identify activity terms
+        for activity, synonyms in ACTIVITY_TERMS.items():
+            if activity in query_lower or any(syn in query_lower for syn in synonyms):
+                result['activity'].append(activity)
+        
+        # Identify time-related terms
+        for time, synonyms in TIME_TERMS.items():
+            if time in query_lower or any(syn in query_lower for syn in synonyms):
+                result['time'].append(time)
+        
+        # Identify amenity terms
+        for amenity, synonyms in AMENITY_TERMS.items():
+            if amenity in query_lower or any(syn in query_lower for syn in synonyms):
+                result['amenities'].append(amenity)
+        
+        # Check for group size indicators
+        if any(term in query_lower for term in ['group', 'party', 'gathering', 'crowd']):
+            result['group_size'].append('large')
+        elif any(term in query_lower for term in ['solo', 'alone', 'by myself', 'single']):
+            result['group_size'].append('solo')
+        elif any(term in query_lower for term in ['date', 'couple', 'two people']):
+            result['group_size'].append('couple')
+        
+        return result
+    
+    def expand_query(self, parsed_query):
+        """
+        Expand a query based on the parsed categories
         
         Args:
-            query: The search query
-            neighborhood: Optional specific neighborhood to filter by
-            limit: Maximum number of results to return
-            location_boost_percentage: Percentage boost for matching neighborhood (0.2 = 20% boost)
+            parsed_query: Dictionary from parse_query
+            
+        Returns:
+            str: Expanded query
+        """
+        original_query = parsed_query['cleaned_query']
+        expansions = []
+        
+        # Add vibe expansions
+        for vibe in parsed_query['vibe']:
+            if vibe in VIBE_TERMS:
+                # Only take top 3 synonyms to avoid diluting the query
+                expansions.extend(VIBE_TERMS[vibe][:3])
+        
+        # Add establishment expansions
+        for est in parsed_query['establishment']:
+            if est in ESTABLISHMENT_TERMS:
+                expansions.extend(ESTABLISHMENT_TERMS[est][:2])
+        
+        # Add cuisine expansions
+        for cuisine in parsed_query['cuisine']:
+            if cuisine in CUISINE_TERMS:
+                expansions.extend(CUISINE_TERMS[cuisine][:2])
+        
+        # Add price expansions
+        for price in parsed_query['price']:
+            if price in PRICE_TERMS:
+                expansions.extend(PRICE_TERMS[price][:2])
+        
+        # Add activity expansions
+        for activity in parsed_query['activity']:
+            if activity in ACTIVITY_TERMS:
+                expansions.extend(ACTIVITY_TERMS[activity][:2])
+        
+        # Add time expansions
+        for time in parsed_query['time']:
+            if time in TIME_TERMS:
+                expansions.extend(TIME_TERMS[time][:2])
+        
+        # Create expanded query
+        expanded_query = original_query
+        
+        # Only add expansions if we have them
+        if expansions:
+            # Remove duplicates while preserving order
+            unique_expansions = []
+            for item in expansions:
+                if item not in unique_expansions and item.lower() not in original_query.lower():
+                    unique_expansions.append(item)
+            
+            # Limit to prevent overly long queries
+            if unique_expansions:
+                # Add a separator and the expansions
+                expanded_query += ". Similar to places that are: " + ", ".join(unique_expansions[:8])
+        
+        return expanded_query
+    
+    def search_places_with_enhanced_query(self, query, limit=10, amenity_filter=True):
+        """
+        Search places with enhanced query parsing, expansion, and filtering
+        
+        Args:
+            query: Original user query
+            limit: Maximum number of results
+            amenity_filter: Whether to apply amenity filtering
             
         Returns:
             List of matching places
@@ -767,140 +997,101 @@ class EmbeddingGenerator:
             logger.warning("pgvector extension not available, cannot perform search")
             return []
         
-        # Extract location from query if not explicitly provided
-        if not neighborhood:
-            clean_query, extracted_neighborhood = extract_location_from_query(query)
-            if extracted_neighborhood:
-                neighborhood = extracted_neighborhood
-                query = clean_query  # Use the cleaned query without location
-                logger.info(f"Extracted location '{neighborhood}' from query. Modified query: '{query}'")
+        # Parse the query into categories
+        parsed_query = self.parse_query(query)
+        
+        # Expand the query with related terms
+        expanded_query = self.expand_query(parsed_query)
+        logger.info(f"Expanded query: '{expanded_query}'")
+        
+        # Extract location if present
+        neighborhood = parsed_query['location']
         
         conn, cur = self._connect_db()
         try:
-            # Generate embedding for query
-            query_embedding, _ = self.generate_embedding(query)
+            # Generate embedding for expanded query
+            query_embedding, _ = self.generate_embedding(expanded_query)
             
             if not query_embedding:
                 logger.error("Failed to generate embedding for search query")
                 return []
             
-            # If neighborhood specified, use location-boosted search
-            if neighborhood:
-                # Query with additive location boost for places in the target neighborhood
-                search_query = """
-                SELECT 
-                    p.id, p.name, p.neighborhood, p.tags, p.price_range,
-                    p.combined_description,
-                    CASE 
-                        WHEN p.neighborhood ILIKE %s THEN 
-                            (1 - (e.embedding <=> %s::vector)) + (%s * (1 - (e.embedding <=> %s::vector)))
-                        ELSE 1 - (e.embedding <=> %s::vector)
-                    END as adjusted_similarity
-                FROM places p
-                JOIN embeddings e ON p.id = e.place_id
-                ORDER BY adjusted_similarity DESC
-                LIMIT %s
-                """
-                
-                neighborhood_pattern = f'%{neighborhood}%'
-                
-                cur.execute(search_query, (
-                    neighborhood_pattern, 
-                    query_embedding, 
-                    location_boost_percentage,
-                    query_embedding,
-                    query_embedding,
-                    limit
-                ))
-            else:
-                # Standard vector search without location filtering
-                search_query = """
-                SELECT p.id, p.name, p.neighborhood, p.tags, p.price_range,
-                    p.combined_description,
-                    1 - (e.embedding <=> %s::vector) as similarity
-                FROM places p
-                JOIN embeddings e ON p.id = e.place_id
-                ORDER BY similarity DESC
-                LIMIT %s
-                """
-                
-                cur.execute(search_query, (query_embedding, limit))
+            # Prepare parameters for search
+            search_params = []
             
+            # Start with basic similarity search
+            base_query = """
+            SELECT 
+                p.id, p.name, p.neighborhood, p.tags, p.price_range,
+                p.combined_description,
+                1 - (e.embedding <=> %s::vector) as similarity
+            FROM places p
+            JOIN embeddings e ON p.id = e.place_id
+            """
+            search_params.append(query_embedding)
+            
+            # Add filters based on parsed query
+            where_clauses = []
+            
+            # Handle amenity filtering
+            if amenity_filter and parsed_query['amenities']:
+                for amenity in parsed_query['amenities']:
+                    where_clauses.append("(p.amenities->%s)::boolean IS TRUE")
+                    search_params.append(amenity)
+            
+            # Add WHERE clause if needed
+            if where_clauses:
+                base_query += " WHERE " + " AND ".join(where_clauses)
+            
+            # Add ordering and limit
+            base_query += " ORDER BY similarity DESC LIMIT %s"
+            search_params.append(limit * 2)  # Get more results initially for neighborhood filtering
+            
+            # Execute the query
+            cur.execute(base_query, search_params)
             results = cur.fetchall()
             
-            # If we got very few results with neighborhood filtering, try expanding to adjacent neighborhoods
-            if neighborhood and len(results) < 3:
-                logger.info(f"Few results ({len(results)}) with neighborhood filter '{neighborhood}'. Expanding to adjacent neighborhoods.")
-                
-                # Try adjacent neighborhoods from our mapping
-                adjacent_neighborhoods = get_adjacent_neighborhoods(neighborhood)
-                if adjacent_neighborhoods:
-                    adjacent_results = []
-                    for adjacent in adjacent_neighborhoods:
-                        # Query with adjacent neighborhood - lower boost for adjacent (0.1 = 10% boost)
-                        adjacent_pattern = f'%{adjacent}%'
-                        cur.execute("""
-                        SELECT 
-                            p.id, p.name, p.neighborhood, p.tags, p.price_range,
-                            p.combined_description,
-                            CASE 
-                                WHEN p.neighborhood ILIKE %s THEN 
-                                    (1 - (e.embedding <=> %s::vector)) + (0.1 * (1 - (e.embedding <=> %s::vector)))
-                                ELSE 1 - (e.embedding <=> %s::vector)
-                            END as adjusted_similarity
-                        FROM places p
-                        JOIN embeddings e ON p.id = e.place_id
-                        ORDER BY adjusted_similarity DESC
-                        LIMIT %s
-                        """, (
-                            adjacent_pattern, 
-                            query_embedding, 
-                            query_embedding,
-                            query_embedding,
-                            3  # Limit per adjacent neighborhood
-                        ))
-                        adjacent_results.extend(cur.fetchall())
-                    
-                    # Combine results, prioritizing any that were in the original results
-                    all_ids = set(r[0] for r in results)  # IDs from original results
-                    
-                    # Add results from adjacent neighborhoods that weren't in original
-                    for res in adjacent_results:
-                        if res[0] not in all_ids:
-                            results.append(res)
-                            all_ids.add(res[0])
-                
-                # If still too few, fall back to unfiltered search 
-                if len(results) < 3:
-                    logger.info(f"Still too few results with adjacent neighborhoods. Trying without location filter.")
-                    
-                    # Query without location filter
-                    cur.execute(
-                        """
-                        SELECT p.id, p.name, p.neighborhood, p.tags, p.price_range,
-                            p.combined_description,
-                            1 - (e.embedding <=> %s::vector) as similarity
-                        FROM places p
-                        JOIN embeddings e ON p.id = e.place_id
-                        ORDER BY similarity DESC
-                        LIMIT %s
-                        """, 
-                        (query_embedding, limit)
-                    )
-                    unfiltered_results = cur.fetchall()
-                    
-                    # Add unfiltered results that aren't already in our results
-                    for res in unfiltered_results:
-                        if res[0] not in all_ids:
-                            results.append(res)
-            
-            # Sort results by similarity (or adjusted_similarity)
+            # Apply neighborhood filtering/boosting if present
             if neighborhood:
-                results.sort(key=lambda x: x[6], reverse=True)  # Sort by adjusted_similarity
-            else:
-                results.sort(key=lambda x: x[6], reverse=True)  # Sort by similarity
+                # Boost places in the target neighborhood
+                boosted_results = []
+                other_results = []
+                neighborhood_pattern = neighborhood.lower()
+                
+                for result in results:
+                    place_id, name, result_neighborhood, tags, price, desc, similarity = result
+                    
+                    if result_neighborhood and neighborhood_pattern in result_neighborhood.lower():
+                        # Apply boost (20% increase in similarity)
+                        boosted_similarity = similarity * 1.2
+                        if boosted_similarity > 1.0:
+                            boosted_similarity = 1.0
+                        boosted_results.append((place_id, name, result_neighborhood, tags, price, desc, boosted_similarity))
+                    else:
+                        other_results.append(result)
+                
+                # Combine boosted and regular results
+                results = boosted_results + other_results
+                
+                # If very few results in target neighborhood, try adjacent neighborhoods
+                if len(boosted_results) < 3:
+                    adjacent_neighborhoods = get_adjacent_neighborhoods(neighborhood)
+                    if adjacent_neighborhoods:
+                        for result in other_results:
+                            place_id, name, result_neighborhood, tags, price, desc, similarity = result
+                            if result_neighborhood and any(adj.lower() in result_neighborhood.lower() for adj in adjacent_neighborhoods):
+                                # Apply smaller boost (10%)
+                                boosted_similarity = similarity * 1.1
+                                if boosted_similarity > 1.0:
+                                    boosted_similarity = 1.0
+                                # Add to boosted results with adjusted similarity
+                                boosted_results.append((place_id, name, result_neighborhood, tags, price, desc, boosted_similarity))
+                        
+                        # Re-combine results
+                        results = boosted_results + [r for r in other_results if r[0] not in [br[0] for br in boosted_results]]
             
-            # Limit to the requested number of results
+            # Sort by similarity and limit results
+            results.sort(key=lambda x: x[6], reverse=True)
             results = results[:limit]
             
             return results
@@ -914,28 +1105,111 @@ class EmbeddingGenerator:
             cur.close()
             conn.close()
     
-    def test_vector_search(self, query, limit=5):
-        """Test vector search with a sample query"""
-        logger.info(f"Testing vector search with query: '{query}'")
-        
-        # First try with location extraction
-        clean_query, location = extract_location_from_query(query)
-        if location:
-            logger.info(f"Extracted location '{location}' from query. Modified query: '{clean_query}'")
-            results = self.search_places_with_location(clean_query, neighborhood=location, limit=limit)
-        else:
-            results = self.search_places_with_location(query, limit=limit)
+    def ensure_amenities_column(self):
+        """Ensure the amenities column exists in the places table"""
+        conn, cur = self._connect_db()
+        try:
+            # Check if amenities column exists
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'places' AND column_name = 'amenities'
+            """)
             
-        if not results:
-            logger.warning("No results found.")
-            return []
+            if not cur.fetchone():
+                logger.info("Adding amenities column to places table")
+                cur.execute("ALTER TABLE places ADD COLUMN amenities JSONB DEFAULT '{}'::jsonb")
+                conn.commit()
+                logger.info("Added amenities column to places table")
+            else:
+                logger.info("Amenities column already exists")
+                
+        except Exception as e:
+            logger.error(f"Error adding amenities column: {str(e)}")
+            conn.rollback()
+        finally:
+            cur.close()
+            conn.close()
+    
+    def extract_amenities_from_descriptions(self):
+        """Extract amenities from place descriptions and populate the amenities column"""
+        conn, cur = self._connect_db()
+        try:
+            # Amenity keywords to look for
+            amenity_patterns = {
+                "wifi": [r'\b(?:wi-?fi|wireless|internet)\b', r'\bwifi\b'],
+                "outdoor_seating": [r'\b(?:outdoor|outside|patio|terrace|sidewalk)\s+(?:seating|dining|area)\b', r'\b(?:garden|courtyard)\b'],
+                "pet_friendly": [r'\b(?:pet|dog)(?:-|\s+)friendly\b', r'\b(?:pets|dogs)\s+(?:allowed|welcome)\b'],
+                "reservations": [r'\breservations?\b', r'\b(?:take|accept)s?\s+reservations?\b'],
+                "takeout": [r'\b(?:take-?out|to-?go|pickup|delivery)\b', r'\bcarry-?out\b'],
+                "live_music": [r'\blive\s+(?:music|band|dj|performance)\b', r'\b(?:music|band|dj)\s+performance\b'],
+                "free_wifi": [r'\bfree\s+(?:wi-?fi|wireless|internet)\b', r'\bfree\s+wifi\b'],
+                "full_bar": [r'\bfull\s+bar\b', r'\bcraft\s+(?:cocktails?|beers?)\b'],
+                "coffee": [r'\b(?:coffee|espresso|latte)\b'],
+                "wheelchair_accessible": [r'\b(?:wheelchair|handicap|ada|accessible)\b'],
+                "vegan_options": [r'\bvegan\b', r'\bvegan[\-\s]+friendly\b'],
+                "gluten_free": [r'\bgluten[\-\s]+free\b'],
+                "vegetarian": [r'\bvegetarian\b', r'\bvegetarian[\-\s]+friendly\b'],
+                "quiet": [r'\b(?:quiet|peaceful|tranquil)\b'],
+                "workspace": [r'\b(?:workspace|work\s+space|working\s+space)\b', r'\b(?:laptops?|work\s+from)\b'],
+                "plug_outlets": [r'\b(?:outlets?|plugs?|sockets?)\b'],
+                "private_room": [r'\bprivate\s+(?:room|dining|event)\b', r'\b(?:event|party)\s+space\b'],
+                "romantic": [r'\bromantic\b', r'\bdate\s+night\b', r'\bintimate\s+setting\b']
+            }
             
-        logger.info(f"Found {len(results)} results:")
-        for i, result in enumerate(results, 1):
-            id, name, neighborhood, tags, price, desc, similarity = result
-            logger.info(f"{i}. {name} ({neighborhood}) - {similarity:.4f}")
+            # Fetch places without amenities data
+            cur.execute("""
+                SELECT id, name, combined_description, tags 
+                FROM places 
+                WHERE amenities IS NULL OR amenities = '{}'::jsonb
+            """)
             
-        return results
+            places = cur.fetchall()
+            logger.info(f"Processing amenities for {len(places)} places")
+            
+            updated_count = 0
+            for place_id, name, description, tags in places:
+                # Skip if no description
+                if not description:
+                    continue
+                
+                amenities = {}
+                
+                # Check for amenity patterns in description
+                for amenity, patterns in amenity_patterns.items():
+                    for pattern in patterns:
+                        if re.search(pattern, description.lower()):
+                            amenities[amenity] = True
+                            break
+                
+                # Also check tags for amenity clues
+                if tags:
+                    parsed_tags = self.parse_tags(tags)
+                    tag_text = " ".join(parsed_tags).lower()
+                    for amenity, patterns in amenity_patterns.items():
+                        if amenity not in amenities:  # Only check if not already found
+                            for pattern in patterns:
+                                if re.search(pattern, tag_text):
+                                    amenities[amenity] = True
+                                    break
+                
+                # Update the place with amenities data if found
+                if amenities:
+                    cur.execute(
+                        "UPDATE places SET amenities = %s::jsonb WHERE id = %s",
+                        (json.dumps(amenities), place_id)
+                    )
+                    updated_count += 1
+            
+            conn.commit()
+            logger.info(f"Updated amenities for {updated_count} places")
+            
+        except Exception as e:
+            logger.error(f"Error extracting amenities: {str(e)}")
+            conn.rollback()
+        finally:
+            cur.close()
+            conn.close()
     
     def add_missing_metadata_column(self):
         """Add metadata JSONB column if it doesn't exist"""
@@ -962,8 +1236,25 @@ class EmbeddingGenerator:
         finally:
             cur.close()
             conn.close()
-
-
+    
+    def test_enhanced_search(self, query, limit=5):
+        """Test the enhanced search functionality"""
+        logger.info(f"Testing enhanced search with query: '{query}'")
+        
+        # Run search with enhanced query
+        results = self.search_places_with_enhanced_query(query, limit=limit)
+        
+        if not results:
+            logger.warning("No results found.")
+            return []
+            
+        logger.info(f"Found {len(results)} results:")
+        for i, result in enumerate(results, 1):
+            id, name, neighborhood, tags, price, desc, similarity = result
+            logger.info(f"{i}. {name} ({neighborhood}) - {similarity:.4f}")
+            
+        return results
+    
 def main():
     # Database configuration
     db_config = {
@@ -978,49 +1269,50 @@ def main():
     # Add metadata column if needed
     generator.add_missing_metadata_column()
     
+    # Ensure amenities column exists
+    generator.ensure_amenities_column()
+    
+    # Extract amenities from descriptions
+    generator.extract_amenities_from_descriptions()
+    
     # Process all places
     tokens_used = generator.process_all_places()
     
-    # Test vector search with enhanced query set
-    logger.info("\nTesting vector search functionality...")
+    # Test the enhanced search with various query types
+    logger.info("\nTesting enhanced search functionality...")
     
     test_queries = [
-        # General location queries
-        "cozy coffee shop in Brooklyn",
-        "authentic thai food with good reviews",
-        "romantic restaurant for date night in West Village",
+        # Vibe-focused queries
+        "cozy cafe to work from",
+        "romantic dinner spot",
+        "casual brunch with friends",
+        "aesthetic restaurant for Instagram",
+        
+        # Amenity-focused queries
+        "cafes with wifi and outlets",
+        "restaurants with outdoor seating",
+        "dog friendly bars",
+        "places with vegetarian options",
         
         # Price-focused queries
         "cheap eats in Chinatown",
-        "budget-friendly pizza",
-        "expensive fine dining",
-        "mid-range italian restaurant",
-        "affordable breakfast spots",
+        "affordable dinner spot",
+        "high-end dining experience",
         
-        # Hours-focused queries
-        "restaurants open late in East Village",
-        "breakfast places open early",
-        "cafes open on weekends",
-        "restaurants open for lunch on Mondays",
-        "dinner spots open until midnight",
-        "places for Sunday brunch",
+        # Time-focused queries
+        "breakfast place open early",
+        "late night food options",
+        "weekend brunch spots",
         
-        # Combined queries
-        "affordable Italian open late",
-        "upscale sushi bar open for lunch",
-        "cheap breakfast place open early in Brooklyn",
-        "mid-priced restaurants with outdoor seating open on Sundays",
-        
-        # Original queries
-        "casual pizza place that's open late",
-        "cocktail bar with unique drinks",
-        "restaurants near Soho with outdoor seating",
-        "affordable brunch spots in East Village",
-        "Japanese restaurants with good vegetarian options"
+        # Combined complex queries
+        "cozy cafe with wifi in Brooklyn",
+        "affordable Italian restaurant with outdoor seating",
+        "quiet workspace with good coffee in Manhattan",
+        "romantic date night spot with vegetarian options"
     ]
     
     for query in test_queries:
-        generator.test_vector_search(query, limit=3)
+        generator.test_enhanced_search(query, limit=3)
         print("-" * 40)
 
 if __name__ == "__main__":

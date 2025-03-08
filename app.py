@@ -5,6 +5,7 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, request, jsonify, render_template
 import logging
 from generate_embeddings import EmbeddingGenerator
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,7 +31,7 @@ def index():
 
 @app.route('/api/search', methods=['GET'])
 def search():
-    """API endpoint for search functionality"""
+    """API endpoint for enhanced search functionality"""
     query = request.args.get('q', '')
     limit = int(request.args.get('limit', 10))
     
@@ -38,8 +39,8 @@ def search():
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     
     try:
-        # Use your existing vector search functionality
-        results = embedding_generator.search_places_with_location(query, limit=limit)
+        # Use the enhanced search functionality
+        results = embedding_generator.search_places_with_enhanced_query(query, limit=limit)
         
         # Convert results to a more frontend-friendly format
         formatted_results = []
@@ -62,7 +63,19 @@ def search():
                 "similarity": round(similarity * 100, 2)  # Convert to percentage for frontend
             })
         
+        # Log the search query for future analysis
+        try:
+            with open('corner_recent_queries.csv', 'a') as f:
+                timestamp = datetime.now().isoformat()
+                f.write(f'"{query}",{timestamp}\n')
+        except Exception as e:
+            logger.warning(f"Failed to log search query: {e}")
+        
         return jsonify({"results": formatted_results})
+    
+    except Exception as e:
+        logger.error(f"Error during search: {str(e)}")
+        return jsonify({"error": "An error occurred during search", "details": str(e)}), 500
     
     except Exception as e:
         logger.error(f"Error during search: {str(e)}")
