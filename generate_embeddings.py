@@ -750,7 +750,7 @@ class EmbeddingGenerator:
             logger.error(traceback.format_exc())
             return 0
     
-    def search_places_with_location(self, query, neighborhood=None, limit=5, location_boost=1.5):
+    def search_places_with_location(self, query, neighborhood=None, limit=5, location_boost_percentage=0.2):
         """
         Enhanced search combining semantic similarity with location filtering
         
@@ -758,7 +758,7 @@ class EmbeddingGenerator:
             query: The search query
             neighborhood: Optional specific neighborhood to filter by
             limit: Maximum number of results to return
-            location_boost: Boost factor for matching neighborhood
+            location_boost_percentage: Percentage boost for matching neighborhood (0.2 = 20% boost)
             
         Returns:
             List of matching places
@@ -786,13 +786,14 @@ class EmbeddingGenerator:
             
             # If neighborhood specified, use location-boosted search
             if neighborhood:
-                # Query with location boost for places in the target neighborhood
+                # Query with additive location boost for places in the target neighborhood
                 search_query = """
                 SELECT 
                     p.id, p.name, p.neighborhood, p.tags, p.price_range,
                     p.combined_description,
                     CASE 
-                        WHEN p.neighborhood ILIKE %s THEN (1 - (e.embedding <=> %s::vector)) * %s
+                        WHEN p.neighborhood ILIKE %s THEN 
+                            (1 - (e.embedding <=> %s::vector)) + (%s * (1 - (e.embedding <=> %s::vector)))
                         ELSE 1 - (e.embedding <=> %s::vector)
                     END as adjusted_similarity
                 FROM places p
@@ -806,7 +807,8 @@ class EmbeddingGenerator:
                 cur.execute(search_query, (
                     neighborhood_pattern, 
                     query_embedding, 
-                    location_boost,
+                    location_boost_percentage,
+                    query_embedding,
                     query_embedding,
                     limit
                 ))
@@ -814,8 +816,8 @@ class EmbeddingGenerator:
                 # Standard vector search without location filtering
                 search_query = """
                 SELECT p.id, p.name, p.neighborhood, p.tags, p.price_range,
-                       p.combined_description,
-                       1 - (e.embedding <=> %s::vector) as similarity
+                    p.combined_description,
+                    1 - (e.embedding <=> %s::vector) as similarity
                 FROM places p
                 JOIN embeddings e ON p.id = e.place_id
                 ORDER BY similarity DESC
@@ -835,12 +837,25 @@ class EmbeddingGenerator:
                 if adjacent_neighborhoods:
                     adjacent_results = []
                     for adjacent in adjacent_neighborhoods:
-                        # Query with adjacent neighborhood
+                        # Query with adjacent neighborhood - lower boost for adjacent (0.1 = 10% boost)
                         adjacent_pattern = f'%{adjacent}%'
-                        cur.execute(search_query, (
+                        cur.execute("""
+                        SELECT 
+                            p.id, p.name, p.neighborhood, p.tags, p.price_range,
+                            p.combined_description,
+                            CASE 
+                                WHEN p.neighborhood ILIKE %s THEN 
+                                    (1 - (e.embedding <=> %s::vector)) + (0.1 * (1 - (e.embedding <=> %s::vector)))
+                                ELSE 1 - (e.embedding <=> %s::vector)
+                            END as adjusted_similarity
+                        FROM places p
+                        JOIN embeddings e ON p.id = e.place_id
+                        ORDER BY adjusted_similarity DESC
+                        LIMIT %s
+                        """, (
                             adjacent_pattern, 
                             query_embedding, 
-                            1.2,  # Lower boost for adjacent neighborhoods
+                            query_embedding,
                             query_embedding,
                             3  # Limit per adjacent neighborhood
                         ))
@@ -863,8 +878,8 @@ class EmbeddingGenerator:
                     cur.execute(
                         """
                         SELECT p.id, p.name, p.neighborhood, p.tags, p.price_range,
-                               p.combined_description,
-                               1 - (e.embedding <=> %s::vector) as similarity
+                            p.combined_description,
+                            1 - (e.embedding <=> %s::vector) as similarity
                         FROM places p
                         JOIN embeddings e ON p.id = e.place_id
                         ORDER BY similarity DESC
