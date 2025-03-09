@@ -355,7 +355,8 @@ class EmbeddingGenerator:
                 p.price_range,
                 p.address,
                 p.hours,
-                p.amenities
+                p.amenities,
+                p.google_id
             FROM places p
             LEFT JOIN embeddings e ON p.id = e.place_id
             WHERE e.id IS NULL
@@ -562,6 +563,7 @@ class EmbeddingGenerator:
         price_range = place[6] if len(place) > 6 else None
         address, hours = place[7] if len(place) > 7 else None, place[8] if len(place) > 8 else None
         amenities = place[9] if len(place) > 9 else None
+        google_id = place[10] if len(place) > 10 else None  # Add this line
         
         # Start with the basic info - explicitly exclude location/neighborhood for embedding
         content_parts = [f"Name: {name}"]
