@@ -279,5 +279,41 @@
     
     <!-- App Script -->
     <script src="/static/js/app.js"></script>
+
+    <!-- Add these just before the closing </body> tag -->
+    <script>
+        // Fallback function in case Google Maps API fails to load
+        function handleGoogleMapsError() {
+            console.error('Google Maps failed to load');
+            // Hide map container
+            const mapContainer = document.getElementById('map-container');
+            if (mapContainer) {
+                mapContainer.classList.add('hidden');
+            }
+            
+            // Remove map-related classes from body
+            document.body.classList.remove('map-visible');
+            document.body.classList.remove('map-expanded-body');
+        }
+        
+        // Initialize map on window load as a backup
+        window.addEventListener('load', function() {
+            if (typeof google === 'undefined' || !google.maps) {
+                // Maps API didn't load properly
+                handleGoogleMapsError();
+            } else if (window.initMap && typeof window.initMap === 'function') {
+                // Maps API loaded but init function hasn't run yet
+                window.initMap();
+            }
+        });
+        
+        // Make the viewPlaceDetails function globally available
+        window.viewPlaceDetails = function(placeId) {
+            const placeElement = document.querySelector(`[data-id="${placeId}"]`);
+            if (placeElement) {
+                placeElement.click();
+            }
+        };
+    </script>
 </body>
 </html>
