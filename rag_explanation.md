@@ -56,9 +56,10 @@ We expand each category with related terms to improve matching:
 ### 3. Location Handling
 
 We handle location separately from the semantic search:
-- Remove location terms from vector matching
-- Apply a 20% relevance boost to places in the target neighborhood
-- Apply a 10% boost to places in adjacent neighborhoods
+- Extract and remove location terms from vector matching
+- Apply a 10% relevance boost to places in the target neighborhood
+- Apply a 5% boost to places in adjacent neighborhoods
+- Enable filtering by specific neighborhoods
 
 ### 4. Amenity Filtering
 
@@ -67,12 +68,46 @@ For binary attributes like "wifi" or "outdoor seating":
 - Apply precise filtering for these attributes
 - Extract amenities automatically from descriptions and tags
 
-### 5. Combined Ranking
+### 5. Enhanced Google Maps Integration
+
+For improved location awareness:
+- Match Corner place IDs with Google Place IDs
+- Display places on an interactive map
+- Enable users to explore nearby locations visually
+- Provide real-time geocoding of search results
+
+### 6. Combined Ranking
 
 Results are ranked using a combination of:
 - Semantic similarity to the expanded query
 - Location-based boosting
 - Amenity filtering
+- Neighborhood matching precision
+
+## Implementation Details
+
+### Vector Search Implementation
+
+We use OpenAI's text-embedding-ada-002 model to generate embeddings for:
+- Place descriptions, names, and relevant attributes
+- User queries (after removing location terms)
+
+These embeddings are stored in PostgreSQL using the pgvector extension, enabling efficient vector similarity search.
+
+### Query Preprocessing
+
+1. Extract and separate location terms
+2. Categorize remaining terms by type (vibe, cuisine, etc.)
+3. Expand query with related terms
+4. Generate embedding for the expanded query
+
+### Search Process
+
+1. Perform vector similarity search with the expanded query
+2. Apply location-based boosting to relevant results
+3. Filter by exact amenities if specified
+4. Combine scores for final ranking
+5. Return results with helpful metadata
 
 ## Results
 
@@ -83,5 +118,19 @@ This enhanced approach delivers several benefits:
 3. **Neighborhood Intelligence**: Results that respect location without being dominated by it
 4. **Broader Matching**: Finding places even when they use different vocabulary
 5. **Improved Filtering**: More precise filtering for binary attributes
+6. **Visual Context**: Map integration provides spatial awareness
+7. **Better User Experience**: More intuitive and responsive interface
 
 By analyzing how our users actually search and implementing this categorized approach, we've created a search experience that better understands and responds to the nuanced ways people look for places in New York City.
+
+## Future Directions
+
+While the current implementation significantly improves search quality, several opportunities exist for further enhancement:
+
+1. **Dynamic Query Expansion**: Adjust expansion based on query context
+2. **Personalized Ranking**: Factor in user preferences and history
+3. **Temporal Awareness**: Better handling of time-based queries
+4. **Enhanced Coordinate-Based Ranking**: Incorporate actual distances
+5. **Hybrid Neural Search**: Combine embeddings with traditional search techniques
+
+These improvements will continue to refine our understanding of user intent and deliver increasingly relevant results.
