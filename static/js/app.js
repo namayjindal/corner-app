@@ -140,27 +140,35 @@ function initMap() {
         
         map.fitBounds(bounds);
     });
+
+    // Add class to body when map is visible
+    document.body.classList.add('map-visible');
+    
+    // Show the map container
+    mapContainer.classList.remove('hidden');
+    mapContainer.classList.add('map-visible');
 }
 
-    // Toggle map visibility
-    if (mapToggle) {
-        mapToggle.addEventListener('click', function() {
-            mapContainer.classList.toggle('map-expanded');
-            document.body.classList.toggle('map-expanded-body');
-            
-            if (mapContainer.classList.contains('map-expanded')) {
-                mapToggle.innerHTML = '<i class="fas fa-compress-alt"></i>';
-                if (map) {
-                    google.maps.event.trigger(map, 'resize');
-                    if (markers.length > 0) {
-                        fitMapToMarkers();
-                    }
+
+    // Update the map toggle functionality
+if (mapToggle) {
+    mapToggle.addEventListener('click', function() {
+        mapContainer.classList.toggle('map-expanded');
+        document.body.classList.toggle('map-expanded-body');
+        
+        if (mapContainer.classList.contains('map-expanded')) {
+            mapToggle.innerHTML = '<i class="fas fa-compress-alt"></i>';
+            if (map) {
+                google.maps.event.trigger(map, 'resize');
+                if (markers.length > 0) {
+                    fitMapToMarkers();
                 }
-            } else {
-                mapToggle.innerHTML = '<i class="fas fa-expand-alt"></i>';
             }
-        });
-    }
+        } else {
+            mapToggle.innerHTML = '<i class="fas fa-expand-alt"></i>';
+        }
+    });
+}
 
     // Load popular searches
     fetch('/api/recent_queries')

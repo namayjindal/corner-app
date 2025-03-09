@@ -9,10 +9,56 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Direct CSS approach to fix map layout -->
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        .content-wrapper {
+            margin-right: 0;
+            transition: margin-right 0.3s ease;
+            width: 100%;
+        }
+        
+        .content-wrapper.map-active {
+            margin-right: 40%;
+            width: 60%;
+        }
+        
+        #map-container {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 40%;
+            height: 100vh;
+            z-index: 10;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #map-toggle {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            z-index: 11;
         }
         
         .lowercase {
@@ -75,182 +121,99 @@
             color: #6366f1;
         }
         
-        .popular-search-pill {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            background-color: #f3f4f6;
-            color: #4b5563;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .popular-search-pill:hover {
-            background-color: #e5e7eb;
-        }
-        
         .search-container {
             max-width: 42rem;
             margin: 0 auto;
         }
         
-        .similarity-badge {
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: #6366f1;
-        }
-        
-        .price-indicator {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #111827;
-        }
-        
-        .description-text {
-            color: #6b7280;
-            font-size: 0.875rem;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-        }
-        
-        #modal-content {
-            color: #4b5563;
-        }
-        
-        /* Map Styles */
-        #map-container {
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: 0;
-            height: 100vh;
-            z-index: 10;
-            transition: width 0.3s ease;
-        }
-        
-        #map-container.map-visible {
-            width: 30%;
-            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
-        }
-        
-        #map-container.map-expanded {
-            width: 50%;
-        }
-        
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-        
-        #map-toggle {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            cursor: pointer;
-            z-index: 11;
-        }
-        
-        .location-badge {
-            display: inline-flex;
-            align-items: center;
-            background-color: #EFF6FF;
-            color: #3B82F6;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .fade-in {
-            animation: fadeIn 0.3s ease-in-out;
+        /* Responsive design for mobile */
+        @media (max-width: 768px) {
+            .content-wrapper.map-active {
+                margin-right: 0;
+                margin-bottom: 50vh;
+                width: 100%;
+            }
+            
+            #map-container {
+                top: auto;
+                bottom: 0;
+                width: 100%;
+                height: 50vh;
+            }
         }
     </style>
 </head>
 <body>
-    <header class="py-4 border-b border-gray-100">
-        <div class="container mx-auto px-4 md:px-6">
-            <div class="flex justify-between items-center">
-                <h1 class="text-xl font-medium text-indigo-600 lowercase">corner</h1>
-                <div class="text-sm text-gray-500 lowercase">find your perfect spot in nyc</div>
-            </div>
-        </div>
-    </header>
-
-    <main class="container mx-auto px-4 md:px-6 py-12">
-        <div class="search-container bg-white rounded-xl shadow-sm p-8 mb-12">
-            <div class="text-center mb-8">
-                <h2 class="text-2xl font-medium text-gray-800 mb-2 lowercase">discover nyc's hidden gems</h2>
-                <p class="text-gray-500 lowercase">search for restaurants, cafes, bars and more</p>
-            </div>
-            
-            <div class="relative mb-6">
-                <input 
-                    type="text" 
-                    id="search-input" 
-                    class="w-full lowercase"
-                    placeholder="try 'cozy cafe in brooklyn' or 'romantic dinner in west village'"
-                >
-                <button id="search-button">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-            
-            <div id="search-suggestions" class="bg-white rounded-lg shadow-lg absolute z-10 w-full hidden"></div>
-            
-            <div class="mt-4 lowercase">
-                <span class="text-sm text-gray-500 mr-2">popular searches:</span>
-                <div class="flex flex-wrap gap-2 mt-2" id="popular-searches">
-                    <!-- Will be populated by JavaScript -->
+    <div class="content-wrapper" id="content-wrapper">
+        <header class="py-4 border-b border-gray-100">
+            <div class="container mx-auto px-4 md:px-6">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-xl font-medium text-indigo-600 lowercase">corner</h1>
+                    <div class="text-sm text-gray-500 lowercase">find your perfect spot in nyc</div>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <div id="results-container" class="hidden">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-xl font-medium text-gray-700 lowercase">results for "<span id="search-term"></span>"</h3>
+        <main class="container mx-auto px-4 md:px-6 py-12">
+            <div class="search-container bg-white rounded-xl shadow-sm p-8 mb-12">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-medium text-gray-800 mb-2 lowercase">discover nyc's hidden gems</h2>
+                    <p class="text-gray-500 lowercase">search for restaurants, cafes, bars and more</p>
+                </div>
                 
-                <!-- Location filter indicator -->
-                <div id="location-filter-container" class="hidden">
-                    <div class="location-badge">
-                        <i class="fas fa-map-marker-alt mr-2"></i>
-                        <span id="location-filter">Location</span>
+                <div class="relative mb-6">
+                    <input 
+                        type="text" 
+                        id="search-input" 
+                        class="w-full lowercase"
+                        placeholder="try 'cozy cafe in brooklyn' or 'romantic dinner in west village'"
+                    >
+                    <button id="search-button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                
+                <div id="search-suggestions" class="bg-white rounded-lg shadow-lg absolute z-10 w-full hidden"></div>
+                
+                <div class="mt-4 lowercase">
+                    <span class="text-sm text-gray-500 mr-2">popular searches:</span>
+                    <div class="flex flex-wrap gap-2 mt-2" id="popular-searches">
+                        <!-- Will be populated by JavaScript -->
                     </div>
                 </div>
             </div>
-            
-            <div id="search-results" class="grid gap-6 grid-cols-1 md:grid-cols-2">
-                <!-- Results will be inserted here -->
-            </div>
-            <div id="no-results" class="text-center py-8 hidden lowercase">
-                <p class="text-gray-500">no results found. try a different search term.</p>
-            </div>
-        </div>
-    </main>
 
-    <footer class="py-8 mt-auto">
-        <div class="container mx-auto px-4 text-center text-gray-400 text-sm lowercase">
-            &copy; 2025 corner - discover nyc's best spots
-        </div>
-    </footer>
+            <div id="results-container" class="hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-medium text-gray-700 lowercase">results for "<span id="search-term"></span>"</h3>
+                    
+                    <!-- Location filter indicator -->
+                    <div id="location-filter-container" class="hidden">
+                        <div class="location-badge">
+                            <i class="fas fa-map-marker-alt mr-2"></i>
+                            <span id="location-filter">Location</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="search-results" class="grid gap-6 grid-cols-1 md:grid-cols-2">
+                    <!-- Results will be inserted here -->
+                </div>
+                <div id="no-results" class="text-center py-8 hidden lowercase">
+                    <p class="text-gray-500">no results found. try a different search term.</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="py-8 mt-auto">
+            <div class="container mx-auto px-4 text-center text-gray-400 text-sm lowercase">
+                &copy; 2025 corner - discover nyc's best spots
+            </div>
+        </footer>
+    </div>
 
     <!-- Map Container -->
-    <div id="map-container" class="hidden map-visible">
+    <div id="map-container" class="hidden">
         <div id="map"></div>
         <button id="map-toggle" class="text-gray-600 hover:text-gray-800">
             <i class="fas fa-expand-alt"></i>
@@ -280,34 +243,104 @@
     <!-- App Script -->
     <script src="/static/js/app.js"></script>
 
-    <!-- Add these just before the closing </body> tag -->
+    <!-- Fixed Map Initialization Script -->
     <script>
-        // Fallback function in case Google Maps API fails to load
-        function handleGoogleMapsError() {
-            console.error('Google Maps failed to load');
-            // Hide map container
+        // Make sure the map initializes correctly
+        document.addEventListener('DOMContentLoaded', function() {
             const mapContainer = document.getElementById('map-container');
-            if (mapContainer) {
-                mapContainer.classList.add('hidden');
+            const contentWrapper = document.getElementById('content-wrapper');
+            
+            // Initialize map visibility
+            function showMap() {
+                if (mapContainer) {
+                    mapContainer.classList.remove('hidden');
+                    if (contentWrapper) {
+                        contentWrapper.classList.add('map-active');
+                    }
+                    console.log("Map initialized and visible");
+                }
             }
             
-            // Remove map-related classes from body
-            document.body.classList.remove('map-visible');
-            document.body.classList.remove('map-expanded-body');
-        }
-        
-        // Initialize map on window load as a backup
-        window.addEventListener('load', function() {
-            if (typeof google === 'undefined' || !google.maps) {
-                // Maps API didn't load properly
-                handleGoogleMapsError();
-            } else if (window.initMap && typeof window.initMap === 'function') {
-                // Maps API loaded but init function hasn't run yet
-                window.initMap();
+            // If Google Maps API is loaded, initialize the map
+            if (typeof google !== 'undefined' && google.maps) {
+                showMap();
+            } else {
+                // If not loaded yet, set up a callback
+                window.initMapCallback = showMap;
+                
+                // Also set a timeout as a fallback
+                setTimeout(showMap, 2000);
             }
         });
         
-        // Make the viewPlaceDetails function globally available
+        // Fixed initMap function to ensure proper initialization
+        function initMap() {
+            console.log("Google Maps initMap called");
+            
+            const mapContainer = document.getElementById('map-container');
+            const contentWrapper = document.getElementById('content-wrapper');
+            const mapElement = document.getElementById('map');
+            
+            if (!mapElement || !mapContainer) {
+                console.error("Map elements not found");
+                return;
+            }
+            
+            // Show the map
+            mapContainer.classList.remove('hidden');
+            if (contentWrapper) {
+                contentWrapper.classList.add('map-active');
+            }
+            
+            // Initialize the map
+            const map = new google.maps.Map(mapElement, {
+                center: { lat: 40.7128, lng: -74.0060 }, // NYC coordinates
+                zoom: 12,
+                styles: [
+                    {
+                        "featureType": "poi",
+                        "stylers": [
+                            { "visibility": "off" }
+                        ]
+                    }
+                ],
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false
+            });
+            
+            // Store map in global scope for other functions to use
+            window.cornerMap = map;
+            
+            // Set up map toggle functionality
+            const mapToggle = document.getElementById('map-toggle');
+            if (mapToggle) {
+                mapToggle.addEventListener('click', function() {
+                    mapContainer.classList.toggle('expanded');
+                    contentWrapper.classList.toggle('map-expanded');
+                    
+                    if (mapContainer.classList.contains('expanded')) {
+                        mapToggle.innerHTML = '<i class="fas fa-compress-alt"></i>';
+                    } else {
+                        mapToggle.innerHTML = '<i class="fas fa-expand-alt"></i>';
+                    }
+                    
+                    // Trigger resize event for map
+                    if (window.cornerMap) {
+                        google.maps.event.trigger(window.cornerMap, 'resize');
+                    }
+                });
+            }
+            
+            // Call the original initMap if it exists
+            if (typeof window.initMapCallback === 'function') {
+                window.initMapCallback();
+            }
+            
+            console.log("Map initialization complete");
+        }
+        
+        // Make sure viewPlaceDetails is globally available
         window.viewPlaceDetails = function(placeId) {
             const placeElement = document.querySelector(`[data-id="${placeId}"]`);
             if (placeElement) {
