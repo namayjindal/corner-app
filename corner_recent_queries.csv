@@ -1,31 +1,12 @@
 query,timestamp
-coffee,2025-02-24 17:42:09.680294+00
-book stores,2025-02-24 17:24:13.205734+00
-cheap happy hour cute,2025-02-24 16:55:03.780006+00
-brunch,2025-02-24 15:00:34.035967+00
-breakfast,2025-02-24 14:08:58.012146+00
 bookstore,2025-02-24 00:45:32.810339+00
 cafe,2025-02-23 21:31:11.926728+00
 burger,2025-02-23 21:11:17.974419+00
 chinese food,2025-02-23 21:10:33.082327+00
-cafe to cowork from,2025-02-23 21:04:30.898488+00
-berlin,2025-02-23 19:47:36.684654+00
-coffee cafe,2025-02-23 19:03:05.22628+00
-cheap,2025-02-23 19:00:15.847531+00
-cafes that allow dogs where i can work,2025-02-23 17:18:54.708841+00
-cafes that allow dogs,2025-02-23 17:18:31.172811+00
 cafe to work from,2025-02-23 16:16:14.018914+00
-cafe in williamsburg,2025-02-23 16:06:31.024429+00
-coffee friends,2025-02-23 15:43:33.832235+00
 coffee hang out,2025-02-23 15:42:43.684189+00
 bakery,2025-02-23 15:21:14.146922+00
 asian,2025-02-23 15:00:29.412495+00
-ando,2025-02-23 14:37:48.845288+00
-bagel,2025-02-23 14:31:19.338972+00
-cinema,2025-02-23 14:25:25.403481+00
-biscuit,2025-02-23 07:09:38.419863+00
-billiards,2025-02-23 03:13:48.17134+00
-birthday bar,2025-02-23 03:00:21.6836+00
 cheap drinks bars,2025-02-23 02:52:58.570448+00
 birthday party,2025-02-23 02:51:31.878488+00
 bar,2025-02-23 02:24:33.378478+00
@@ -1010,3 +991,44 @@ cafe to grab a bite,2023-11-22 21:01:44.069554+00"cheap happy hour cute",2025-03
 "cheap cute cafe",2025-03-09T14:13:36.680464
 "bougie asian restaurant",2025-03-09T14:14:22.427613
 "underground cute cafes",2025-03-09T14:19:16.589873
+"romantic dinner in West Village",2025-03-09T16:36:57.246277
+"asian restaurant in upper east side",2025-03-09T16:37:37.273624
+"stuff to do in upper west side",2025-03-09T16:38:44.872410
+"museums",2025-03-09T16:40:06.645251
+"book stores in brooklyn",2025-03-09T16:40:41.920118
+"book stores in soho",2025-03-09T16:42:07.918740
+"alphabet city",2025-03-09T16:42:25.336706
+"thai places in manhattan",2025-03-09T16:43:46.032522
+"thai places in chelsea",2025-03-09T16:44:10.440092
+"thai places in soho",2025-03-09T16:44:21.500436
+"book stores in soho",2025-03-09T16:44:31.673736
+"museum in upper west side",2025-03-09T16:44:52.388213
+"bridge in brooklyn",2025-03-09T16:45:03.136024
+"west village cafes",2025-03-09T16:59:56.703357
+"east village cafes",2025-03-09T17:01:19.362725
+"thai restaurant in les",2025-03-09T17:01:31.502796
+"museum in upper east side",2025-03-09T17:01:48.592841
+"museum in upper west side",2025-03-09T17:02:05.905478
+"museum in manhattan",2025-03-09T17:02:11.998252
+"museum in brooklyn",2025-03-09T17:02:17.006170
+"mid-range lounge in manhattan",2025-03-09T17:02:38.349752
+"brunch spots in east village",2025-03-09T17:03:45.271086
+"brunch",2025-03-09T17:04:57.260836
+"brunch in east village",2025-03-09T17:05:23.104697
+"romantic dinner in east village",2025-03-09T17:23:18.967900
+"cars in les",2025-03-09T17:24:45.228409
+"bars in les",2025-03-09T17:24:50.524955
+"bars in lower east side",2025-03-09T17:25:03.120430
+"work cafes in manhattan",2025-03-09T17:25:17.353602
+"east village brunch",2025-03-09T17:32:40.217771
+"late night spots in west village",2025-03-09T17:34:59.382551
+"best cocktail bars",2025-03-09T17:37:38.228791
+"book stores",2025-03-09T17:40:32.332946
+"coffee",2025-03-09T17:40:48.749042
+"bookstore in manhattan",2025-03-09T17:49:29.712583
+"book stores in east village",2025-03-09T17:58:15.389456
+"breakfast in brooklyn",2025-03-09T17:59:01.219670
+"cheap happy hour cute",2025-03-09T18:10:51.690880
+"breakfast in les",2025-03-09T18:11:07.561813
+"museums in manhattan",2025-03-09T18:11:28.830058
+"brooklyn cafes",2025-03-09T18:11:40.113390
