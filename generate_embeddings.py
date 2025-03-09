@@ -1075,8 +1075,8 @@ class EmbeddingGenerator:
                     place_id, name, result_neighborhood = result[0], result[1], result[2]
                     
                     if result_neighborhood and neighborhood_pattern in result_neighborhood.lower():
-                        # Apply boost (20% increase in similarity)
-                        boosted_similarity = result[8] * 1.2
+                        # Apply boost (10% increase in similarity)
+                        boosted_similarity = result[8] * 1.1
                         if boosted_similarity > 1.0:
                             boosted_similarity = 1.0
                         
@@ -1098,8 +1098,8 @@ class EmbeddingGenerator:
                             place_id, name, result_neighborhood = result[0], result[1], result[2]
                             if (result_neighborhood and 
                                 any(adj.lower() in result_neighborhood.lower() for adj in adjacent_neighborhoods)):
-                                # Apply smaller boost (10%)
-                                boosted_similarity = result[8] * 1.1
+                                # Apply smaller boost (5%)
+                                boosted_similarity = result[8] * 1.05
                                 if boosted_similarity > 1.0:
                                     boosted_similarity = 1.0
                                 
@@ -1299,8 +1299,8 @@ class EmbeddingGenerator:
                     place_id, name, result_neighborhood, tags, price, desc, similarity = result
                     
                     if result_neighborhood and neighborhood_pattern in result_neighborhood.lower():
-                        # Apply boost (20% increase in similarity)
-                        boosted_similarity = similarity * 1.2
+                        # Apply boost (10% increase in similarity)
+                        boosted_similarity = similarity * 1.1
                         if boosted_similarity > 1.0:
                             boosted_similarity = 1.0
                         boosted_results.append((place_id, name, result_neighborhood, tags, price, desc, boosted_similarity))
@@ -1317,8 +1317,8 @@ class EmbeddingGenerator:
                         for result in other_results:
                             place_id, name, result_neighborhood, tags, price, desc, similarity = result
                             if result_neighborhood and any(adj.lower() in result_neighborhood.lower() for adj in adjacent_neighborhoods):
-                                # Apply smaller boost (10%)
-                                boosted_similarity = similarity * 1.1
+                                # Apply smaller boost (5%)
+                                boosted_similarity = similarity * 1.05
                                 if boosted_similarity > 1.0:
                                     boosted_similarity = 1.0
                                 # Add to boosted results with adjusted similarity

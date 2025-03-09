@@ -28,7 +28,8 @@ embedding_generator = EmbeddingGenerator(db_config)
 @app.route('/')
 def index():
     """Render the main search page"""
-    return render_template('index.html')
+    google_api_key = os.environ.get("GOOGLE_API_KEY", "")
+    return render_template('index.html', google_api_key=google_api_key)
 
 @app.route('/api/search', methods=['GET'])
 def search():
