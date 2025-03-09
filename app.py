@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify, render_template
 import logging
 from generate_embeddings import EmbeddingGenerator
 from datetime import datetime
+import traceback
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,50 +35,53 @@ def search():
     """API endpoint for enhanced search functionality with optional similarity breakdown"""
     query = request.args.get('q', '')
     limit = int(request.args.get('limit', 10))
-    # debug = request.args.get('debug', 'false').lower() == 'true'
-
-    debug = True
-
-    print(f"DEBUG FLAG: {debug}")
+    debug = True  # For debugging
     
     if not query:
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     
     try:
-        # Use the debug version or regular version based on flag
-        if debug:
-            results = embedding_generator.search_places_with_meaningful_breakdown(query, limit=limit)
-        else:
-            results = embedding_generator.search_places_with_enhanced_query(query, limit=limit)
+        # Get search results
+        results = embedding_generator.search_places_with_meaningful_breakdown(query, limit=limit)
         
-        # Convert results to a more frontend-friendly format
+        # Check what structure the results actually have (for debugging)
+        if results and len(results) > 0:
+            logger.info(f"Result structure: {results[0]}")
+        
+        # Convert results to a more frontend-friendly format with defensive unpacking
         formatted_results = []
         for result in results:
-            # Updated to handle both result formats (from both search functions)
-            if len(result) >= 7:  # For search_places_with_meaningful_breakdown
-                place_id, name, neighborhood, tags, price_range, description, similarity = result
-            else:  # For search_places_with_enhanced_query
-                place_id, name, neighborhood, tags, price_range, description, similarity = result
-            
-            # Parse tags if they're in string format
-            if tags and isinstance(tags, str):
-                if tags.startswith('{') and tags.endswith('}'):
-                    tags = tags.strip('{}').split(',')
-                    tags = [tag.strip('"\'') for tag in tags]
-            
-            # Fetch Google ID for this place
-            google_id = get_place_google_id(place_id)
-            
-            formatted_results.append({
-                "id": place_id,
-                "name": name,
-                "neighborhood": neighborhood,
-                "tags": tags,
-                "price_range": price_range,
-                "description": description[:200] + "..." if description and len(description) > 200 else description,
-                "similarity": round(similarity * 100, 2),  # Convert to percentage for frontend
-                "google_id": google_id  # Add Google ID to results
-            })
+            # Defensive unpacking - make sure we have all the fields we need
+            if len(result) >= 7:  # We need at least 7 elements
+                place_id = result[0]
+                name = result[1]
+                neighborhood = result[2] if len(result) > 2 else None
+                tags = result[3] if len(result) > 3 else None
+                price_range = result[4] if len(result) > 4 else None
+                description = result[5] if len(result) > 5 else None
+                similarity = result[6] if len(result) > 6 else 0.0
+                
+                # Parse tags if they're in string format
+                if tags and isinstance(tags, str):
+                    if tags.startswith('{') and tags.endswith('}'):
+                        tags = tags.strip('{}').split(',')
+                        tags = [tag.strip('"\'') for tag in tags]
+                
+                # Get Google ID if available
+                google_id = get_place_google_id(place_id) if 'get_place_google_id' in globals() else None
+                
+                formatted_results.append({
+                    "id": place_id,
+                    "name": name,
+                    "neighborhood": neighborhood,
+                    "tags": tags,
+                    "price_range": price_range,
+                    "description": description[:200] + "..." if description and len(description) > 200 else description,
+                    "similarity": round(similarity * 100, 2) if isinstance(similarity, (int, float)) else 0  # Convert to percentage
+                })
+            else:
+                # Log issue with this result
+                logger.warning(f"Result has insufficient data: {result}")
         
         # Log the search query for future analysis
         try:
@@ -91,6 +95,7 @@ def search():
     
     except Exception as e:
         logger.error(f"Error during search: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")  # Add this for more detailed error info
         return jsonify({"error": "An error occurred during search", "details": str(e)}), 500
 
 def get_place_google_id(place_id):

@@ -12,6 +12,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 import traceback
 
+import math
+import requests
+from typing import Dict, List, Optional, Tuple, Any
+
 # Import the location extraction functionality
 from location_extraction import extract_location_from_query, get_adjacent_neighborhoods
 
@@ -39,6 +43,21 @@ VIBE_TERMS = {
     'cool': ['hip', 'trendy', 'edgy', 'stylish', 'interesting', 'unique'],
     'fancy': ['upscale', 'elegant', 'sophisticated', 'high-end', 'luxurious'],
     'casual': ['relaxed', 'laid-back', 'informal', 'easygoing', 'unpretentious']
+}
+
+LOCATION_HIERARCHY = {
+    'manhattan': [
+        'soho', 'tribeca', 'chelsea', 'east village', 'west village', 
+        'upper east side', 'upper west side', 'midtown', 'lower east side',
+        'greenwich village', 'harlem', 'financial district', 'chinatown',
+        'little italy', 'murray hill', 'gramercy', 'flatiron', 'noho'
+    ],
+    'brooklyn': [
+        'williamsburg', 'dumbo', 'greenpoint', 'park slope', 'bushwick',
+        'brooklyn heights', 'fort greene', 'boerum hill', 'carroll gardens',
+        'cobble hill', 'red hook', 'crown heights', 'bed-stuy'
+    ],
+    # Add other boroughs
 }
 
 ESTABLISHMENT_TERMS = {
@@ -1472,6 +1491,138 @@ class EmbeddingGenerator:
             logger.info(f"{i}. {name} ({neighborhood}) - {similarity:.4f}")
             
         return results
+    
+    def enhanced_location_extraction(self, query):
+        """Extract and validate location using existing patterns and hierarchies"""
+        # Extract location using our existing extract_location_from_query
+        cleaned_query, location = extract_location_from_query(query)
+        
+        if not location:
+            return None, cleaned_query, None
+        
+        # Normalize location
+        location_lower = location.lower()
+        
+        # Check if it's a borough/high-level area
+        is_borough = location_lower in ['manhattan', 'brooklyn', 'queens', 'bronx', 'staten island']
+        
+        # Check if it's in our known neighborhoods
+        parent_borough = None
+        for borough, neighborhoods in LOCATION_HIERARCHY.items():
+            if location_lower in neighborhoods:
+                parent_borough = borough
+                break
+        
+        return {
+            'query': location,
+            'is_borough': is_borough,
+            'parent_borough': parent_borough,
+            'normalized': location_lower
+        }, cleaned_query, location
+    
+    def is_in_requested_location(self, place_neighborhood, target_location):
+        """Check if the place is in the requested location using hierarchical matching"""
+        if not place_neighborhood or not target_location:
+            return False
+            
+        # Normalize to lowercase
+        place_lower = place_neighborhood.lower()
+        
+        # Direct match
+        if place_lower == target_location['normalized']:
+            return True
+        
+        # If the target is a borough, check if place is in that borough
+        if target_location['is_borough']:
+            # Check if place_lower is in the neighborhoods list for this borough
+            return place_lower in LOCATION_HIERARCHY.get(target_location['normalized'], [])
+        
+        # If the place is in a known neighborhood, check if it matches the parent borough
+        for borough, neighborhoods in LOCATION_HIERARCHY.items():
+            if place_lower in neighborhoods:
+                # If target is in the same borough, it's a match
+                return borough == target_location['parent_borough']
+        
+        # Fuzzy matching for common abbreviations and variations
+        place_variations = self.get_location_variations(place_lower)
+        target_variations = self.get_location_variations(target_location['normalized'])
+        
+        return any(p_var == t_var for p_var in place_variations for t_var in target_variations)
+    
+    def get_location_variations(self, location):
+        """Get common variations of neighborhood names"""
+        variations = [location]
+        
+        # Add common abbreviations and alternate names
+        location_map = {
+            'east village': ['ev'],
+            'west village': ['wv', 'west vill'],
+            'upper east side': ['ues', 'upper east'],
+            'upper west side': ['uws', 'upper west'],
+            'lower east side': ['les', 'lower east'],
+            'williamsburg': ['wburg', 'the burg'],
+            'financial district': ['fidi'],
+            # Add more variations as needed
+        }
+        
+        if location in location_map:
+            variations.extend(location_map[location])
+        
+        return variations
+    
+    def search_places_with_location_filtering(self, query, limit=10):
+        """Enhanced search with better location handling"""
+        # Extract and validate location
+        location_info, cleaned_query, location_str = self.enhanced_location_extraction(query)
+        
+        # Use the cleaned query (without location) for embedding search
+        semantic_results = self.search_places_with_meaningful_breakdown(
+            cleaned_query, 
+            limit=limit*2  # Get more results initially for filtering
+        )
+        
+        # Process and filter results
+        processed_results = []
+        
+        for result in semantic_results:
+            place_id, name, neighborhood = result[0], result[1], result[2]
+            tags, price_range = result[3], result[4]
+            description, similarity = result[5], result[7]
+            
+            # Determine if this place matches the requested location
+            in_requested_location = False
+            location_status = "Different area"
+            
+            if location_info and neighborhood:
+                in_requested_location = self.is_in_requested_location(
+                    neighborhood, 
+                    location_info
+                )
+                
+                if in_requested_location:
+                    if neighborhood.lower() == location_info['normalized']:
+                        location_status = "Exact match"
+                    else:
+                        location_status = "In area"
+            
+            # Add boosted similarity for places in the right location
+            adjusted_similarity = similarity
+            if in_requested_location:
+                # Boost by 20% for matching locations
+                adjusted_similarity = min(similarity * 1.2, 1.0)
+            
+            # Add to processed results
+            processed_results.append((
+                place_id, name, neighborhood, tags, price_range, 
+                description, in_requested_location, location_status, 
+                adjusted_similarity
+            ))
+        
+        # Sort results: prioritize in-location results, then by similarity
+        processed_results.sort(key=lambda x: (-1 if x[6] else 0, -x[8]))
+        
+        # Apply limit
+        return processed_results[:limit]
     
 def main():
     # Database configuration

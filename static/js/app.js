@@ -216,14 +216,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    function createPlaceCard(place, locationFilter) {
+    function createPlaceCard(place) {
         const div = document.createElement('div');
         div.className = 'place-card';
         div.dataset.id = place.id;
-        
-        // Check if place is in the requested location
-        const isInRequestedLocation = locationFilter && place.neighborhood && 
-            place.neighborhood.toLowerCase().includes(locationFilter.toLowerCase());
         
         // Format tags
         let tagsHTML = '';
@@ -233,12 +229,26 @@ document.addEventListener('DOMContentLoaded', function() {
             ).join('');
         }
         
+        // Format location status badge
+        let locationBadge = '';
+        if (place.location_status) {
+            let badgeClass = 'bg-gray-100 text-gray-700';
+            
+            if (place.location_status === 'Exact match') {
+                badgeClass = 'bg-green-100 text-green-700';
+            } else if (place.location_status === 'In area') {
+                badgeClass = 'bg-blue-100 text-blue-700';
+            } else if (place.location_status === 'Different area') {
+                badgeClass = 'bg-amber-100 text-amber-700';
+            }
+            
+            locationBadge = `<span class="ml-2 px-2 py-1 text-xs rounded-full ${badgeClass}">${place.location_status}</span>`;
+        }
+        
         div.innerHTML = `
             <h3>${place.name}</h3>
             <div class="neighborhood">
-                <i class="fas fa-map-marker-alt text-indigo-500"></i> ${place.neighborhood || 'New York'}
-                ${locationFilter && !isInRequestedLocation ? 
-                  '<span class="ml-2 text-amber-500 text-xs font-medium">Different location</span>' : ''}
+                <i class="fas fa-map-marker-alt text-indigo-500"></i> ${place.neighborhood || 'New York'} ${locationBadge}
             </div>
             <div class="flex justify-between items-center">
                 <div class="price">${place.price_range || ''}</div>
@@ -251,11 +261,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add click event to show details
         div.addEventListener('click', () => {
             showPlaceDetails(place.id);
-            
-            // Highlight the marker on the map
-            if (place.google_id && map) {
-                highlightMarker(place.id);
-            }
         });
         
         return div;
