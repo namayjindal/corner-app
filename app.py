@@ -31,16 +31,24 @@ def index():
 
 @app.route('/api/search', methods=['GET'])
 def search():
-    """API endpoint for enhanced search functionality"""
+    """API endpoint for enhanced search functionality with optional similarity breakdown"""
     query = request.args.get('q', '')
     limit = int(request.args.get('limit', 10))
+    # debug = request.args.get('debug', 'false').lower() == 'true'
+
+    debug = True
+
+    print(f"DEBUG FLAG: {debug}")
     
     if not query:
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     
     try:
-        # Use the enhanced search functionality
-        results = embedding_generator.search_places_with_enhanced_query(query, limit=limit)
+        # Use the debug version or regular version based on flag
+        if debug:
+            results = embedding_generator.search_places_with_meaningful_breakdown(query, limit=limit)
+        else:
+            results = embedding_generator.search_places_with_enhanced_query(query, limit=limit)
         
         # Convert results to a more frontend-friendly format
         formatted_results = []

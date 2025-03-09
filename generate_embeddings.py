@@ -981,6 +981,222 @@ class EmbeddingGenerator:
         
         return expanded_query
     
+    def search_places_with_meaningful_breakdown(self, query, limit=10, amenity_filter=True):
+        """
+        Enhanced version of search that provides a more meaningful breakdown
+        of why certain places match a query better than others
+        """
+        if not self.has_pgvector:
+            logger.warning("pgvector extension not available, cannot perform search")
+            return []
+        
+        # Parse the query into categories
+        parsed_query = self.parse_query(query)
+        original_query = query
+        
+        # Get the original query embedding before expansion
+        original_embedding, _ = self.generate_embedding(original_query)
+        
+        # Expand the query with related terms
+        expanded_query = self.expand_query(parsed_query)
+        logger.info(f"Expanded query: '{expanded_query}'")
+        
+        # Get the expanded query embedding
+        expanded_embedding, _ = self.generate_embedding(expanded_query)
+        
+        # Extract location if present
+        neighborhood = parsed_query['location']
+        
+        conn, cur = self._connect_db()
+        try:
+            # Run search with the expanded embedding
+            search_params = [expanded_embedding]
+            
+            base_query = """
+            SELECT 
+                p.id, p.name, p.neighborhood, p.tags, p.price_range,
+                p.combined_description, p.hours, p.amenities,
+                1 - (e.embedding <=> %s::vector) as similarity
+            FROM places p
+            JOIN embeddings e ON p.id = e.place_id
+            """
+            
+            # Add amenity filtering if needed
+            where_clauses = []
+            if amenity_filter and parsed_query['amenities']:
+                for amenity in parsed_query['amenities']:
+                    where_clauses.append("(p.amenities->%s)::boolean IS TRUE")
+                    search_params.append(amenity)
+            
+            if where_clauses:
+                base_query += " WHERE " + " AND ".join(where_clauses)
+            
+            base_query += " ORDER BY similarity DESC LIMIT %s"
+            search_params.append(limit * 2)  # Get more results initially for neighborhood filtering
+            
+            # Execute the query
+            cur.execute(base_query, search_params)
+            results = cur.fetchall()
+            
+            # Apply neighborhood filtering/boosting if present
+            boosted_places = set()
+            
+            if neighborhood:
+                # Track original similarities before boosting for analysis
+                original_similarities = {result[0]: result[8] for result in results}
+                
+                # Boost places in the target neighborhood
+                boosted_results = []
+                other_results = []
+                neighborhood_pattern = neighborhood.lower()
+                
+                for result in results:
+                    place_id, name, result_neighborhood = result[0], result[1], result[2]
+                    
+                    if result_neighborhood and neighborhood_pattern in result_neighborhood.lower():
+                        # Apply boost (20% increase in similarity)
+                        boosted_similarity = result[8] * 1.2
+                        if boosted_similarity > 1.0:
+                            boosted_similarity = 1.0
+                        
+                        # Create new result tuple with boosted similarity
+                        new_result = result[:8] + (boosted_similarity,)
+                        boosted_results.append(new_result)
+                        boosted_places.add(place_id)
+                    else:
+                        other_results.append(result)
+                
+                # Combine boosted and regular results
+                results = boosted_results + other_results
+                
+                # If very few results in target neighborhood, try adjacent neighborhoods
+                if len(boosted_results) < 3:
+                    adjacent_neighborhoods = get_adjacent_neighborhoods(neighborhood)
+                    if adjacent_neighborhoods:
+                        for result in other_results:
+                            place_id, name, result_neighborhood = result[0], result[1], result[2]
+                            if (result_neighborhood and 
+                                any(adj.lower() in result_neighborhood.lower() for adj in adjacent_neighborhoods)):
+                                # Apply smaller boost (10%)
+                                boosted_similarity = result[8] * 1.1
+                                if boosted_similarity > 1.0:
+                                    boosted_similarity = 1.0
+                                
+                                # Create new result tuple with boosted similarity
+                                new_result = result[:8] + (boosted_similarity,)
+                                boosted_results.append(new_result)
+                                boosted_places.add(place_id)
+                        
+                        # Re-combine results
+                        results = boosted_results + [r for r in other_results if r[0] not in [br[0] for br in boosted_results]]
+            
+            # Sort by similarity and get top results
+            results.sort(key=lambda x: x[8], reverse=True)
+            top_results = results[:limit]
+            
+            # ======= MEANINGFUL BREAKDOWN ANALYSIS =======
+            logger.info("=" * 50)
+            logger.info(f"MEANINGFUL BREAKDOWN FOR QUERY: '{query}'")
+            logger.info("=" * 50)
+            
+            if neighborhood:
+                logger.info(f"Location filter: {neighborhood}")
+            
+            # Compare expanded vs. original query
+            if expanded_query != original_query:
+                logger.info(f"Query was expanded from: '{original_query}'")
+                logger.info(f"Expanded to: '{expanded_query}'")
+            
+            # For each top result, provide a meaningful breakdown
+            for i, result in enumerate(top_results[:5], 1):
+                place_id, name, result_neighborhood = result[0], result[1], result[2]
+                tags, price_range = result[3], result[4]
+                description, hours, amenities, similarity = result[5], result[6], result[7], result[8]
+                
+                logger.info(f"\n{i}. {name} ({result_neighborhood}) - Similarity: {similarity:.4f}")
+                
+                # Check if neighborhood boosting was applied
+                if place_id in boosted_places:
+                    original_sim = original_similarities.get(place_id, 0)
+                    boost_amount = ((similarity - original_sim) / original_sim) * 100
+                    logger.info(f"   ⭐ Location boost applied: +{boost_amount:.1f}% (from {original_sim:.4f} to {similarity:.4f})")
+                
+                # Get similarity with original query vs expanded query
+                if expanded_query != original_query:
+                    # Get similarity with just the original query embedding
+                    cur.execute(
+                        """
+                        SELECT 1 - (e.embedding <=> %s::vector) as original_similarity
+                        FROM embeddings e 
+                        WHERE e.place_id = %s
+                        """,
+                        (original_embedding, place_id)
+                    )
+                    original_similarity = cur.fetchone()[0]
+                    
+                    # Calculate the impact of query expansion
+                    expansion_impact = ((similarity - original_similarity) / original_similarity) * 100
+                    logger.info(f"   📈 Expansion impact: {expansion_impact:+.1f}% (from {original_similarity:.4f} to {similarity:.4f})")
+                
+                # Extract key information from the place
+                logger.info(f"   📝 Description snippet: {description[:150]}..." if description else "   No description available")
+                
+                # Check for matching tags
+                if tags and isinstance(tags, list):
+                    matching_tags = []
+                    for tag in tags:
+                        for term in query.lower().split():
+                            if term in tag.lower():
+                                matching_tags.append(tag)
+                                break
+                    
+                    if matching_tags:
+                        logger.info(f"   🏷️ Matching tags: {', '.join(matching_tags)}")
+                
+                # Check for matching amenities
+                if amenities and isinstance(amenities, dict):
+                    matching_amenities = []
+                    for amenity, value in amenities.items():
+                        if value and any(term in amenity.lower() for term in query.lower().split()):
+                            matching_amenities.append(amenity)
+                    
+                    if matching_amenities:
+                        logger.info(f"   ✅ Matching amenities: {', '.join(matching_amenities)}")
+                
+                # Show price range if relevant to query
+                if price_range and any(term in query.lower() for term in ["cheap", "affordable", "expensive", "price", "cost"]):
+                    logger.info(f"   💰 Price: {price_range}")
+            
+            logger.info("=" * 50)
+            
+            # Extract just what we need for the frontend
+            formatted_results = []
+            for result in top_results:
+                place_id, name, neighborhood, tags, price, description, _, _, similarity = result
+                
+                # Format tags
+                if tags and isinstance(tags, str):
+                    if tags.startswith('{') and tags.endswith('}'):
+                        tags = tags.strip('{}').split(',')
+                        tags = [tag.strip('"\'') for tag in tags]
+                
+                formatted_results.append((
+                    place_id, name, neighborhood, tags, price, 
+                    description[:200] + "..." if description and len(description) > 200 else description, 
+                    similarity
+                ))
+            
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"Error in search breakdown: {str(e)}")
+            logger.error(traceback.format_exc())
+            conn.rollback()
+            return []
+        finally:
+            cur.close()
+            conn.close()
+    
     def search_places_with_enhanced_query(self, query, limit=10, amenity_filter=True):
         """
         Search places with enhanced query parsing, expansion, and filtering
